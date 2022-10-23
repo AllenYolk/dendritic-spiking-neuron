@@ -60,25 +60,3 @@ class DendCompartment(base.MemoryModule):
                 f"DendCompartment.step should be 'm' or 's', "
                 "but get {self.step_mode} instead."
             )
-
-
-if __name__ == "__main__":
-    T, N = 10, 2
-    x_seq = torch.randn(size = [T, N]) + 0.5
-
-    dend = DendCompartment(step_mode = "m", decay_input = True)
-    v_seq = dend(x_seq)
-
-    for t in range(T):
-        print(f"t = {t}:")
-        print(f"    x = {x_seq[t]}")
-        print(f"    v = {v_seq[t]} [decay input]")
-
-    dend.reset()
-    dend.decay_input = False
-    v_seq = dend(x_seq)
-
-    for t in range(T):
-        print(f"t = {t}:")
-        print(f"    x = {x_seq[t]}")
-        print(f"    v = {v_seq[t]} [not decay input]") 
