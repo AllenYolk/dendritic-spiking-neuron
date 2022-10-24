@@ -6,8 +6,9 @@ from dendsj import dendrite
 
 
 class DendNeuron(nn.Module):
-    def __init__(self):
+    def __init__(
+        self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode
+    ):
         super().__init__()
-        self.soma = sj_neuron.LIFNode()
-        self.dend = dendrite.DendCompartment()
-
+        self.dend = dend
+        self.soma = soma
