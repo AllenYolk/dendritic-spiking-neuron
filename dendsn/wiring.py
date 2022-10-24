@@ -10,7 +10,9 @@ class BaseWiring(abc.ABC):
         self, n_compartment: int, n_input: int, output_index: List[int],
     ):
         self.n_compartment = n_compartment
-        self.adjacency_matrix = torch.zeros([n_compartment, n_compartment])
+        self.adjacency_matrix = torch.zeros(
+            size = [n_compartment, n_compartment], dtype = torch.int32
+        )
         self._n_input = n_input
         self._output_index = output_index
         if not self.validation_check():
@@ -68,7 +70,6 @@ class BaseWiring(abc.ABC):
         # check the validity of n_input and output_index
         if (self.n_input < 0) or (self.n_input > self.n_compartment):
             return False
-
         if ((min(self.output_index) < 0)
             or (max(self.output_index) >= self.n_compartment)):
             return False
@@ -76,6 +77,27 @@ class BaseWiring(abc.ABC):
         # pass all the tests
         return True
 
+    def add_compartment_connection(self, src: int, dest: int):
+        if (src < 0 or src >= self.n_compartment 
+            or dest < 0 or dest >= self.n_compartment):
+            raise ValueError(
+                f"invalid dendritic compartment connection: "
+                f"src = {src}, dest = {dest}"
+            )
+        self.adjacency_matrix[src, dest] = 1
+
     @abc.abstractmethod
+    def build(self):
+        pass
+
+
+class SingleDendLayerWiring(BaseWiring):
+
+    def __init__(self, n_compartment: int):
+        super().__init__(
+            n_compartment = n_compartment, n_input = n_compartment,
+            output_index = list(range(n_compartment))
+        )
+
     def build(self):
         pass

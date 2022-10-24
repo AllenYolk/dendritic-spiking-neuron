@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from spikingjelly.activation_based import neuron as sj_neuron
 
-from dendsj import dendrite
+from dendsn import dendrite
 
 
 class DendNeuron(nn.Module):

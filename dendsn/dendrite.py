@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from dendsj import dend_compartment, wiring
+from dendsn import dend_compartment, wiring
 
 
 class BaseDend(nn.Module):

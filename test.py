@@ -1,7 +1,7 @@
 import argparse
 
 import torch
-from dendsj import dend_compartment, neuron, wiring
+from dendsn import dend_compartment, neuron, wiring
 
 
 def dend_compartment_test(T: int = 10, N: int  = 3):
@@ -23,17 +23,20 @@ def dend_compartment_test(T: int = 10, N: int  = 3):
         print(f"    v = {v_seq[t]} [not decay input]")  
 
 
-def neuron_test():
-    dn = neuron.DendNeuron()
-
-
 def wiring_test():
-    w = wiring.BaseWiring(
-        n_compartment = 10, n_input = 3, output_index = list(range(6, 10)),
-        adjacency_matrix = torch.eye(n = 10)
+    w = wiring.SingleDendLayerWiring(
+        n_compartment = 10
     )
     w.validation_check()
     print(w.adjacency_matrix)
+
+
+def dendrite_test():
+    pass
+
+
+def neuron_test():
+    dn = neuron.DendNeuron()
 
 
 def main():
@@ -46,10 +49,12 @@ def main():
 
     if args.mode == "dend_compartment":
         dend_compartment_test()
-    elif args.mode == "neuron":
-        neuron_test()
     elif args.mode == "wiring":
         wiring_test()
+    elif args.mode == "dendrite":
+        dendrite_test()
+    elif args.mode == "neuron":
+        neuron_test()
     else:
         raise ValueError(f"Invalid argument: mode = {args.mode}")
 
