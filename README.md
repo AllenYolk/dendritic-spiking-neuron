@@ -13,12 +13,12 @@ The model in `dendsn` is based on:
 
 Dendritic neurons are built in a bottom-up manner in this package.
 
-* ==dendritic neuron==: `neuron.py`
-    * **synapse**: ???
-    * **dendrite**: `dendrite.py`
+* **dendritic neuron**: `neuron.py`
+    * synapse: ???
+    * dendrite: `dendrite.py`
         * dendritic compartments: `dend_compartment.py`
         * wiring of the compartments: `wiring.py`
-    * **soma**: `spikingjelly.activation_based.neuron.py`
+    * soma: `spikingjelly.activation_based.neuron.py`
 
 
 

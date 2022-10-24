@@ -1,3 +1,18 @@
+"""
+This module defines the connection diagram of the dendritic compartments so that
+we can build dendrites with complex morphologies.
+The three key components of a "compartment wiring" are:
+1. the adjacency matrix within a set of compartments
+2. a list specifying which compartments receive synaptic inputs (a.k.a. input
+    compartments)
+3. a list specifying which compartments are connected to the soma (a.k.a. output
+    compartments)
+
+Notice that neither the synaptic connection mask from the presynaptic neurons
+to the input compartments nor the connection from the output compartments to
+the soma is defined here.
+"""
+
 import abc
 from typing import List
 
