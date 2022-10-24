@@ -24,7 +24,7 @@ class BaseWiring(abc.ABC):
     def __init__(
         self, n_compartment: int, n_input: int, output_index: List[int],
     ):
-        self.n_compartment = n_compartment
+        self._n_compartment = n_compartment
         self.adjacency_matrix = torch.zeros(
             size = [n_compartment, n_compartment], dtype = torch.int32
         )
@@ -36,6 +36,11 @@ class BaseWiring(abc.ABC):
                 f"  n_input = {n_input}\n"
                 f"  output_index = {output_index}\n"
             )
+
+    # n_compartment: read-only
+    @property
+    def n_compartment(self) -> int:
+        return self._n_compartment
 
     # input_index: read-only
     @property

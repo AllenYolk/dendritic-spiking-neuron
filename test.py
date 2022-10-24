@@ -42,7 +42,7 @@ def neuron_test():
 def main():
     parser = argparse.ArgumentParser(description = "dendsj test")
     parser.add_argument(
-        "--mode", "-m", type = str, default = "neuron",
+        "--mode", "-m", type = str, default = "all",
         help = "the mode of test.py (specifying the feature to be tested)"
     )
     args = parser.parse_args()
@@ -54,6 +54,11 @@ def main():
     elif args.mode == "dendrite":
         dendrite_test()
     elif args.mode == "neuron":
+        neuron_test()
+    elif args.mode == "all":
+        dend_compartment_test()
+        wiring_test()
+        dendrite_test()
         neuron_test()
     else:
         raise ValueError(f"Invalid argument: mode = {args.mode}")
