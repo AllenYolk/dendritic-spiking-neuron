@@ -1,10 +1,12 @@
 import argparse
 
 import torch
-from dendsn import dend_compartment, neuron, wiring
+from dendsn import dend_compartment, wiring, dendrite
 
 
-def dend_compartment_test(T: int = 10, N: int  = 3):
+def dend_compartment_test(T: int = 5, N: int  = 3):
+    print("====="*20)
+    print("dendritic compartment dynamics test:")
     x_seq = torch.randn(size = [T, N]) + 0.5
 
     dend = dend_compartment.PassiveDendCompartment(
@@ -26,6 +28,8 @@ def dend_compartment_test(T: int = 10, N: int  = 3):
 
 
 def wiring_test():
+    print("====="*20)
+    print("dendritic compartment wiring test:")
     w = wiring.SegregatedDendWiring(
         n_compartment = 10
     )
@@ -33,8 +37,43 @@ def wiring_test():
     print(w.adjacency_matrix)
 
 
-def dendrite_test():
-    pass
+def dendrite_test(T: int = 5, B: int = 2, N: int = 6):
+    print("====="*20)
+    print("dendritic model test:")
+    x_seq = torch.randn(size = [T, B, N])
+
+    dend1 = dendrite.SegregatedDend(
+        compartment = dend_compartment.PassiveDendCompartment(),
+        wiring = wiring.SegregatedDendWiring(n_compartment = N),
+        step_mode = "m"
+    )
+    dend2 = dendrite.VoltageDiffDend(
+        compartment = dend_compartment.PassiveDendCompartment(),
+        wiring = wiring.SegregatedDendWiring(n_compartment = N),
+        step_mode = "m"
+    )
+    w3 = wiring.SegregatedDendWiring(n_compartment = N)
+    w3.adjacency_matrix = torch.eye(n = N, dtype = torch.int32)
+    dend3 = dendrite.VoltageDiffDend(
+        compartment = dend_compartment.PassiveDendCompartment(),
+        wiring = w3, step_mode = "m"
+    )
+    dend4 = dendrite.VoltageDiffDend(
+        compartment = dend_compartment.PassiveDendCompartment(),
+        wiring = wiring.Kto1DendWirng(k = 3, n_output = 2, n_input = 6),
+        step_mode = "m"
+    )
+    v1_seq = dend1(x_seq)
+    v2_seq = dend2(x_seq)
+    v3_seq = dend3(x_seq)
+    v4_seq = dend4(x_seq)
+    for t in range(T):
+        print(f"t = {t}:")
+        print(f"    x = {x_seq[t, 0]}")
+        print(f"    v1 = {v1_seq[t, 0]} [decay input, SegregatedDend]")
+        print(f"    v2 = {v2_seq[t, 0]} [decay input, VoltageDiffDend]")
+        print(f"    v3 = {v3_seq[t, 0]} [decay input, VoltageDiffDend, eye]")
+        print(f"    v4 = {v4_seq[t, 0]} [decay input, VoltageDiffDend, 2to1]")
 
 
 def neuron_test():

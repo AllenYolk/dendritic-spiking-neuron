@@ -14,6 +14,7 @@ class BaseDend(nn.Module, abc.ABC):
         wiring: wiring.BaseWiring, 
         step_mode: str = "s"
     ):
+        super().__init__()
         self.compartment = compartment
         self.wiring = wiring
         self.step_mode = step_mode

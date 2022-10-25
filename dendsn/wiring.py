@@ -14,7 +14,7 @@ the soma is defined here.
 """
 
 import abc
-from typing import List
+from typing import List, Optional
 
 import torch
 
@@ -23,6 +23,7 @@ class BaseWiring(abc.ABC):
 
     def __init__(
         self, n_compartment: int, n_input: int, output_index: List[int],
+        *args, **kwargs
     ):
         self._n_compartment = n_compartment
         self.adjacency_matrix = torch.zeros(
@@ -36,6 +37,7 @@ class BaseWiring(abc.ABC):
                 f"  n_input = {n_input}\n"
                 f"  output_index = {output_index}\n"
             )
+        self.build(*args, **kwargs)
 
     # n_compartment: read-only
     @property
@@ -111,7 +113,7 @@ class BaseWiring(abc.ABC):
         self.add_compartment_connection(n2, n1)
 
     @abc.abstractmethod
-    def build(self):
+    def build(self, *args, **kwargs):
         pass
 
 
@@ -133,3 +135,27 @@ class SegregatedDendWiring(BaseWiring):
 
     def build(self):
         pass
+
+
+class Kto1DendWirng(BaseWiring):
+
+    def __init__(self, k: int, n_output: int, n_input: Optional[int] = None):
+        if n_input is None:
+            n_input = k * n_output
+        elif n_output * k != n_input:
+            raise ValueError(
+                f"n_input should be equal to k * n_output, "
+                f"but n_input = {n_input}, k = {k}, n_output = {n_output}"
+            )
+        n_compartment = n_input + n_output
+        super().__init__(
+            n_compartment = n_compartment, n_input = n_input,
+            output_index = list(range(n_input, n_compartment)), k = k
+        )
+        self.k = k
+
+    def build(self, k: int):
+        for i, dest in enumerate(self.output_index):
+            for j in range(k):
+                src = i * k + j
+                self.add_compartment_connection(src, dest)

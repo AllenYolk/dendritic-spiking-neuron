@@ -6,6 +6,7 @@ from dendsn import dendrite
 
 
 class DendNeuron(nn.Module):
+
     def __init__(
         self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode
     ):
