@@ -106,6 +106,10 @@ class BaseWiring(abc.ABC):
             )
         self.adjacency_matrix[src, dest] = 1
 
+    def add_compartment_double_connection(self, n1: int, n2: int):
+        self.add_compartment_connection(n1, n2)
+        self.add_compartment_connection(n2, n1)
+
     @abc.abstractmethod
     def build(self):
         pass

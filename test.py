@@ -7,20 +7,22 @@ from dendsn import dend_compartment, neuron, wiring
 def dend_compartment_test(T: int = 10, N: int  = 3):
     x_seq = torch.randn(size = [T, N]) + 0.5
 
-    dend = dend_compartment.PassiveDendCompartment(decay_input = True)
+    dend = dend_compartment.PassiveDendCompartment(
+        decay_input = True, step_mode = "m"
+    )
+    v_seq = dend(x_seq)
     for t in range(T):
-        v = dend(x_seq[t])
         print(f"t = {t}:")
         print(f"    x = {x_seq[t]}")
-        print(f"    v = {v} [decay input]")
+        print(f"    v = {v_seq[t]} [decay input]")
 
     dend.reset()
     dend.decay_input = False
+    v_seq = dend(x_seq)
     for t in range(T):
-        v = dend(x_seq[t])
         print(f"t = {t}:")
         print(f"    x = {x_seq[t]}")
-        print(f"    v = {v} [not decay input]")  
+        print(f"    v = {v_seq[t]} [not decay input]")  
 
 
 def wiring_test():
