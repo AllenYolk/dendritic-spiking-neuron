@@ -12,7 +12,6 @@ class BaseDend(nn.Module):
     ):
         self.compartment = compartment
         self.wiring = wiring
-        self.step_mode = compartment.step_mode
 
     def reset(self):
         self.compartment.reset()
