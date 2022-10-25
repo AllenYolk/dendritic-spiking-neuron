@@ -115,9 +115,17 @@ class BaseWiring(abc.ABC):
         pass
 
 
-class SingleDendLayerWiring(BaseWiring):
+class SegregatedDendWiring(BaseWiring):
 
     def __init__(self, n_compartment: int):
+        """
+        Segregated wiring diagram of dendritic compartments.
+        n_compartment = n_input = n_output .
+        Empty adjacency matrix.
+
+        Args:
+            n_compartment (int)
+        """
         super().__init__(
             n_compartment = n_compartment, n_input = n_compartment,
             output_index = list(range(n_compartment))

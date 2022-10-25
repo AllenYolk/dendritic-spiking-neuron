@@ -26,7 +26,7 @@ def dend_compartment_test(T: int = 10, N: int  = 3):
 
 
 def wiring_test():
-    w = wiring.SingleDendLayerWiring(
+    w = wiring.SegregatedDendWiring(
         n_compartment = 10
     )
     w.validation_check()
