@@ -147,6 +147,7 @@ class Kto1DendWirng(BaseWiring):
                 f"n_input should be equal to k * n_output, "
                 f"but n_input = {n_input}, k = {k}, n_output = {n_output}"
             )
+
         n_compartment = n_input + n_output
         super().__init__(
             n_compartment = n_compartment, n_input = n_input,

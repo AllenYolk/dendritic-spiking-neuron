@@ -71,8 +71,8 @@ class BaseDend(nn.Module, abc.ABC):
             return self.multi_step_forward(x)
         else:
             raise ValueError(
-                f"BaseDend.step should be 'm' or 's', "
-                "but get {self.step_mode} instead."
+                f"BaseDend.step_mode should be 'm' or 's', "
+                f"but get {self.step_mode} instead."
             )
 
 

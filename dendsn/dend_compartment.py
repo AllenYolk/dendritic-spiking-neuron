@@ -6,7 +6,6 @@ or couping) among a set of compartments is not considered here.
 """
 
 import abc
-from multiprocessing.sharedctypes import Value
 
 import torch
 from spikingjelly.activation_based import base

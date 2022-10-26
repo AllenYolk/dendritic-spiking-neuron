@@ -37,7 +37,7 @@ def wiring_test():
     print(w.adjacency_matrix)
 
 
-def dendrite_test(T: int = 5, B: int = 2, N: int = 6):
+def dendrite_test(T: int = 5, B: int = 2, N: int = 6, k: int = 3):
     print("====="*20)
     print("dendritic model test:")
     x_seq = torch.randn(size = [T, B, N])
@@ -60,7 +60,7 @@ def dendrite_test(T: int = 5, B: int = 2, N: int = 6):
     )
     dend4 = dendrite.VoltageDiffDend(
         compartment = dend_compartment.PassiveDendCompartment(),
-        wiring = wiring.Kto1DendWirng(k = 3, n_output = 2, n_input = 6),
+        wiring = wiring.Kto1DendWirng(k = k, n_output = N // k, n_input = N),
         step_mode = "m"
     )
     v1_seq = dend1(x_seq)
@@ -73,7 +73,7 @@ def dendrite_test(T: int = 5, B: int = 2, N: int = 6):
         print(f"    v1 = {v1_seq[t, 0]} [decay input, SegregatedDend]")
         print(f"    v2 = {v2_seq[t, 0]} [decay input, VoltageDiffDend]")
         print(f"    v3 = {v3_seq[t, 0]} [decay input, VoltageDiffDend, eye]")
-        print(f"    v4 = {v4_seq[t, 0]} [decay input, VoltageDiffDend, 2to1]")
+        print(f"    v4 = {v4_seq[t, 0]} [decay input, VoltageDiffDend, {k}to1]")
 
 
 def neuron_test():
