@@ -4,14 +4,15 @@ import abc
 import torch
 import torch.nn as nn
 
-from dendsn import dend_compartment, wiring
+from dendsn import dend_compartment
+from dendsn import wiring as wr
 
 
 class BaseDend(nn.Module, abc.ABC):
 
     def __init__(
         self, compartment: dend_compartment.BaseDendCompartment,
-        wiring: wiring.BaseWiring, 
+        wiring: wr.BaseWiring, 
         step_mode: str = "s"
     ):
         super().__init__()
@@ -56,13 +57,9 @@ class BaseDend(nn.Module, abc.ABC):
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
         pass
 
+    @abc.abstractmethod
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
-        T = x_seq.shape[0]
-        y_seq = []
-        for t in range(T):
-            y = self.single_step_forward(x_seq[t])
-            y_seq.append(y)
-        return torch.stack(y_seq)
+        pass
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.step_mode == "s":
@@ -80,7 +77,7 @@ class SegregatedDend(BaseDend):
 
     def __init__(
         self, compartment: dend_compartment.BaseDendCompartment,
-        wiring: wiring.SegregatedDendWiring,
+        wiring: wr.SegregatedDendWiring,
         step_mode: str = "s"
     ):
         """
@@ -98,15 +95,15 @@ class SegregatedDend(BaseDend):
             ValueError: when `wiring` is not 
                 an instance of SegregatedDendWiring.
         """
-        super().__init__(compartment, wiring, step_mode)
         if not self.segregation_check:
             raise ValueError(
-                f"The dendritic wiring matrix for SegregatedDend should be"
-                f"an empty matrix, but get:\n{self.wiring.adjacency_matrix}"
+                f"The dendritic wiring should be an instance of"
+                f"wiring.SegregatedDendWiring, but get {self.wiring} instead."
             )
+        super().__init__(compartment, wiring, step_mode)
 
     def segregation_check(self):
-        return isinstance(self.wiring, wiring.SegregatedDendWiring)
+        return isinstance(self.wiring, wr.SegregatedDendWiring)
 
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
         v_compartment = self.compartment.single_step_forward(x)
@@ -117,11 +114,11 @@ class SegregatedDend(BaseDend):
         return v_compartment_seq
 
 
-class VoltageDiffDend(BaseDend):
+class VDiffDend(BaseDend):
 
     def __init__(
         self, compartment: dend_compartment.BaseDendCompartment,
-        wiring: wiring.BaseWiring, 
+        wiring: wr.BaseWiring, 
         coupling_strength: Union[float, torch.Tensor] = 1.,
         step_mode: str = "s" 
     ):
@@ -146,3 +143,11 @@ class VoltageDiffDend(BaseDend):
         input = self.get_input_to_compartment(x)
         v_compartment = self.compartment.single_step_forward(input)
         return self.get_output(v_compartment)
+
+    def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
+        T = x_seq.shape[0]
+        y_seq = []
+        for t in range(T):
+            y = self.single_step_forward(x_seq[t])
+            y_seq.append(y)
+        return torch.stack(y_seq)

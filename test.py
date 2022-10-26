@@ -47,18 +47,18 @@ def dendrite_test(T: int = 5, B: int = 2, N: int = 6, k: int = 3):
         wiring = wiring.SegregatedDendWiring(n_compartment = N),
         step_mode = "m"
     )
-    dend2 = dendrite.VoltageDiffDend(
+    dend2 = dendrite.VDiffDend(
         compartment = dend_compartment.PassiveDendCompartment(),
         wiring = wiring.SegregatedDendWiring(n_compartment = N),
         step_mode = "m"
     )
     w3 = wiring.SegregatedDendWiring(n_compartment = N)
     w3.adjacency_matrix = torch.eye(n = N, dtype = torch.int32)
-    dend3 = dendrite.VoltageDiffDend(
+    dend3 = dendrite.VDiffDend(
         compartment = dend_compartment.PassiveDendCompartment(),
         wiring = w3, step_mode = "m"
     )
-    dend4 = dendrite.VoltageDiffDend(
+    dend4 = dendrite.VDiffDend(
         compartment = dend_compartment.PassiveDendCompartment(),
         wiring = wiring.Kto1DendWirng(k = k, n_output = N // k, n_input = N),
         step_mode = "m"
@@ -71,9 +71,9 @@ def dendrite_test(T: int = 5, B: int = 2, N: int = 6, k: int = 3):
         print(f"t = {t}:")
         print(f"    x = {x_seq[t, 0]}")
         print(f"    v1 = {v1_seq[t, 0]} [decay input, SegregatedDend]")
-        print(f"    v2 = {v2_seq[t, 0]} [decay input, VoltageDiffDend]")
-        print(f"    v3 = {v3_seq[t, 0]} [decay input, VoltageDiffDend, eye]")
-        print(f"    v4 = {v4_seq[t, 0]} [decay input, VoltageDiffDend, {k}to1]")
+        print(f"    v2 = {v2_seq[t, 0]} [decay input, VDiffDend]")
+        print(f"    v3 = {v3_seq[t, 0]} [decay input, VDiffDend, eye]")
+        print(f"    v4 = {v4_seq[t, 0]} [decay input, VDiffDend, {k}to1]")
 
 
 def neuron_test():
