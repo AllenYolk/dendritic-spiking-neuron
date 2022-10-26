@@ -1,10 +1,10 @@
-from typing import Union
+from typing import Union, Optional
 import abc
 
 import torch
 import torch.nn as nn
 
-from dendsn import dend_compartment
+from dendsn import dend_compartment, operations
 from dendsn import wiring as wr
 
 
@@ -39,18 +39,23 @@ class BaseDend(nn.Module, abc.ABC):
         x_external[..., :self.wiring.n_input] = x
         return x_external
 
-    def get_output(self, v_compartment: torch.Tensor) -> torch.Tensor:
+    def get_output(
+        self, v_compartment: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """
         Tool function 2.
         Use slicing mechanism to get the output from the 
         compartmental voltage tensor.
 
         Args:
-            v_compartment (torch.Tensor): shape=[..., self.wiring.n_compartment]
+            v_compartment (torch.Tensor, optional): 
+                shape=[..., self.wiring.n_compartment]
 
         Returns:
             torch.Tensor: shape=[..., self.wiring.n_output]
         """
+        if v_compartment is None:
+            return self.compartment.v[..., self.wiring.output_index]
         return v_compartment[..., self.wiring.output_index]
 
     @abc.abstractmethod
@@ -127,9 +132,10 @@ class VDiffDend(BaseDend):
 
     def get_internal_input(self) -> torch.Tensor:
         v = self.compartment.v # v.shape = [..., n_comp]
-        v_gap = v.unsqueeze(-1) - v.unsqueeze(-2) # [..., n_comp, n_comp]
-        v_gap = v_gap * self.wiring.adjacency_matrix
-        input_internal = (v_gap * self.coupling_strength).sum(dim = -2)
+        input_internal = operations.diff_mask_mult_sum(
+            x1 = v, x2 = v, mask = self.wiring.adjacency_matrix,
+            factor = self.coupling_strength
+        )
         return input_internal
 
     def get_input_to_compartment(self, x: torch.Tensor) -> torch.Tensor:

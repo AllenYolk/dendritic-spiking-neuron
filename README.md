@@ -22,7 +22,6 @@ Dendritic neurons are built in a bottom-up manner in this package.
 * **synapse**: ???
 
 
-
 ### References:
 * Legenstein, R., & Maass, W. (2011). Branch-specific plasticity enables self-organization of nonlinear computation in single neurons. The Journal of Neuroscience: The Official Journal of the Society for Neuroscience, 31(30), 10787–10802. https://doi.org/10.1523/JNEUROSCI.5684-10.2011
 
