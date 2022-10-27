@@ -1,11 +1,12 @@
 import abc
-from typing import Union, Optional
+from typing import Union, Optional, List
+from numpy import isin
 
 import torch
 import torch.nn as nn
 from spikingjelly.activation_based import neuron as sj_neuron
 
-from dendsn import dend_soma_conn, dendrite, operations
+from dendsn import dend_soma_conn, dendrite, operation
 
 
 class BaseDendNeuron(nn.Module, abc.ABC):
@@ -24,6 +25,17 @@ class BaseDendNeuron(nn.Module, abc.ABC):
     def reset(self):
         self.dend.reset()
         self.soma.reset()
+
+    def v_soma_float2tensor_by_shape_ints(self, *shape):
+        if isinstance(self.soma.v, float):
+            v_init = self.soma.v
+            self.soma.v = torch.full(size = shape, fill_value = v_init)
+
+    def v_soma_float2tensor_by_shape_list(self, shape):
+        self.v_soma_float2tensor_by_shape_ints(*shape)
+
+    def v_soma_float2tensor_by_tensor(self, x: torch.Tensor):
+        self.soma.v_float_to_tensor(x)
 
     @abc.abstractmethod
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -58,13 +70,15 @@ class VForwardDendNeuron(BaseDendNeuron):
 
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
         v2soma = self.dend.single_step_forward(x)
+        self.v_soma_float2tensor_by_shape_ints(
+            *v2soma.shape[:-1], self.dend_soma_conn.n_soma
+        )
         v_soma = self.soma.v
-        input2soma = operations.diff_mask_mult_sum(
+        input2soma = operation.diff_mask_mult_sum(
             x1 = v2soma, x2 = v_soma,
             mask = self.dend_soma_conn.forward_adjacency_matrix,
             factor = self.forward_strength
         )
-        input2soma = self.get_input2soma(v2soma)
         # input2soma.shape = [..., n_soma]
         soma_spike = self.soma.single_step_forward(input2soma)
         return soma_spike
@@ -74,9 +88,12 @@ class VForwardDendNeuron(BaseDendNeuron):
         # v2soma_seq.shape = [T, ..., n_output_compartment]
         T = x_seq.shape[0]
         soma_spike_seq = []
+        self.v_soma_float2tensor_by_shape_ints(
+            *v2soma_seq[0].shape[:-1], self.dend_soma_conn.n_soma
+        )
         for t in range(T):
             v_soma = self.soma.v
-            input2soma = operations.diff_mask_mult_sum(
+            input2soma = operation.diff_mask_mult_sum(
                 x1 = v2soma_seq[t], x2 = v_soma,
                 mask = self.dend_soma_conn.forward_adjacency_matrix,
                 factor = self.forward_strength
@@ -108,8 +125,11 @@ class VForwardSBackwardDendNeuron(BaseDendNeuron):
 
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
         v2soma = self.dend.single_step_forward(x)
+        self.v_soma_float2tensor_by_shape_ints(
+            *v2soma.shape[:-1], self.dend_soma_conn.n_soma
+        )
         v_soma = self.soma.v
-        input2soma = operations.diff_mask_mult_sum(
+        input2soma = operation.diff_mask_mult_sum(
             x1 = v2soma, x2 = v_soma,
             mask = self.dend_soma_conn.forward_adjacency_matrix,
             factor = self.forward_strength

@@ -1,7 +1,9 @@
 import argparse
 
 import torch
-from dendsn import dend_compartment, wiring, dendrite
+from spikingjelly.activation_based import neuron as sj_neuron
+
+from dendsn import dend_compartment, wiring, dendrite, neuron, dend_soma_conn
 
 
 def dend_compartment_test(T: int = 5, N: int  = 3):
@@ -76,8 +78,134 @@ def dendrite_test(T: int = 5, B: int = 2, N: int = 6, k: int = 3):
         print(f"    v4 = {v4_seq[t, 0]} [decay input, VDiffDend, {k}to1]")
 
 
-def neuron_test():
-    pass
+def neuron_test(
+    T: int = 25, B: int = 2, N: int = 36, k1: int = 4, k2: int = 3,
+    tau_dend = 3., tau_soma = 20.
+):
+    print("====="*20)
+    print("neuron model test:")
+    x_seq = torch.randn(size = [T, B, N]) + 3
+
+    dn = neuron.VForwardDendNeuron(
+        dend = dendrite.VDiffDend(
+            compartment = dend_compartment.PassiveDendCompartment(
+                tau = tau_dend, decay_input = True
+            ),
+            wiring = wiring.Kto1DendWirng(
+                k = k1, n_output = N//k1, n_input = N
+            ),
+            coupling_strength = (tau_dend - 1.) / k1# dynamics analysis
+        ),
+        soma = sj_neuron.LIFNode(tau = tau_soma),
+        dend_soma_conn = dend_soma_conn.Kto1DendSomaConn(
+            k = k2, n_soma = N//k1//k2, n_output_compartment = N//k1,
+            enable_backward = False
+        ),
+        step_mode = "m"
+    )
+    dn_fb = neuron.VForwardSBackwardDendNeuron(
+        dend = dendrite.VDiffDend(
+            compartment = dend_compartment.PassiveDendCompartment(
+                tau = tau_dend, decay_input = True
+            ),
+            wiring = wiring.Kto1DendWirng(
+                k = k1, n_output = N//k1, n_input = N, bidirection = False
+            ),
+            coupling_strength = (tau_dend - 1.) / k1
+        ),
+        soma = sj_neuron.LIFNode(tau = tau_soma),
+        dend_soma_conn = dend_soma_conn.Kto1DendSomaConn(
+            k = k2, n_soma = N//k1//k2, n_output_compartment = N//k1,
+            enable_backward = True
+        ),
+        step_mode = "m"
+    )
+    bdn = neuron.VForwardDendNeuron(
+        dend = dendrite.VDiffDend(
+            compartment = dend_compartment.PassiveDendCompartment(
+                tau = tau_dend, decay_input = True
+            ),
+            wiring = wiring.Kto1DendWirng(
+                k = k1, n_output = N//k1, n_input = N, bidirection = True
+            ),
+            coupling_strength = (tau_dend - 1.) / k1# dynamics analysis
+        ),
+        soma = sj_neuron.LIFNode(tau = tau_soma),
+        dend_soma_conn = dend_soma_conn.Kto1DendSomaConn(
+            k = k2, n_soma = N//k1//k2, n_output_compartment = N//k1,
+            enable_backward = False
+        ),
+        step_mode = "m"
+    )
+    bdn_fb = neuron.VForwardSBackwardDendNeuron(
+        dend = dendrite.VDiffDend(
+            compartment = dend_compartment.PassiveDendCompartment(
+                tau = tau_dend, decay_input = True
+            ),
+            wiring = wiring.Kto1DendWirng(
+                k = k1, n_output = N//k1, n_input = N, bidirection = True
+            ),
+            coupling_strength = (tau_dend - 1.) / k1
+        ),
+        soma = sj_neuron.LIFNode(tau = tau_soma),
+        dend_soma_conn = dend_soma_conn.Kto1DendSomaConn(
+            k = k2, n_soma = N//k1//k2, n_output_compartment = N//k1,
+            enable_backward = True
+        ),
+        step_mode = "m"
+    )
+
+    y_seq = dn(x_seq)
+    y_seq_fb = dn_fb(x_seq)
+    by_seq = bdn(x_seq)
+    by_seq_fb = bdn_fb(x_seq)
+    dn.step_mode = "s"
+    dn_fb.step_mode = "s"
+    bdn.step_mode = "s"
+    bdn_fb.step_mode = "s"
+    dn.reset()
+    dn_fb.reset()
+    bdn.reset()
+    bdn_fb.reset()
+
+    for t in range(T):
+        y = dn(x_seq[t])
+        y_fb = dn_fb(x_seq[t])
+        by = bdn(x_seq[t])
+        by_fb = bdn_fb(x_seq[t])
+        print(f"t = {t}:")
+        print(
+            f"    v_dend = "
+            f"{dn.dend.compartment.v[0, dn.dend.wiring.output_index]}"
+            f" [VF, decay input]"
+        )
+        print(
+            f"    v_dend = "
+            f"{dn_fb.dend.compartment.v[0, dn.dend.wiring.output_index]}"
+            f" [VFSB, decay input]"
+        )
+        print(
+            f"    v_dend = "
+            f"{bdn.dend.compartment.v[0, dn.dend.wiring.output_index]}"
+            f" [BiVF, decay input]"
+        )
+        print(
+            f"    v_dend = "
+            f"{bdn_fb.dend.compartment.v[0, dn.dend.wiring.output_index]}"
+            f" [BiVFSB, decay input]"
+        )
+        print(f"    v_soma = {dn.soma.v[0]} [VF, decay input]")
+        print(f"    v_soma = {dn_fb.soma.v[0]} [VFSB, decay input]")
+        print(f"    v_soma = {bdn.soma.v[0]} [BiVF, decay input]")
+        print(f"    v_soma = {bdn_fb.soma.v[0]} [BiVFSB, decay input]")
+        print(f"    spike = {y[0]} [VF, decay input, single-step]")
+        print(f"    spike = {y_seq[t, 0]} [VF, decay input, multi-step]")
+        print(f"    spike = {y_fb[0]} [VFSB, decay input, single-step]")
+        print(f"    spike = {y_seq_fb[t, 0]} [VFSB, decay input, multi-step]")
+        print(f"    spike = {by[0]} [BiVF, decay input, single-step]")
+        print(f"    spike = {by_seq[t, 0]} [BiVF, decay input, multi-step]")
+        print(f"    spike = {by_fb[0]} [BiVFSB, decay input, single-step]")
+        print(f"    spike = {by_seq_fb[t, 0]} [BiVFSB, decay input, multi-step]")
 
 
 def main():

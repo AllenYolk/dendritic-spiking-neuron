@@ -4,7 +4,7 @@ import abc
 import torch
 import torch.nn as nn
 
-from dendsn import dend_compartment, operations
+from dendsn import dend_compartment, operation
 from dendsn import wiring as wr
 
 
@@ -132,7 +132,7 @@ class VDiffDend(BaseDend):
 
     def get_internal_input(self) -> torch.Tensor:
         v = self.compartment.v # v.shape = [..., n_comp]
-        input_internal = operations.diff_mask_mult_sum(
+        input_internal = operation.diff_mask_mult_sum(
             x1 = v, x2 = v, mask = self.wiring.adjacency_matrix,
             factor = self.coupling_strength
         )

@@ -23,7 +23,7 @@ class BaseWiring(abc.ABC):
 
     def __init__(
         self, n_compartment: int, n_input: int, output_index: List[int],
-        *args, **kwargs
+        bidirection: bool, *args, **kwargs
     ):
         self._n_compartment = n_compartment
         self.adjacency_matrix = torch.zeros(
@@ -31,6 +31,7 @@ class BaseWiring(abc.ABC):
         )
         self._n_input = n_input
         self._output_index = output_index
+        self._bidirection = bidirection
         if not self.validation_check():
             raise ValueError(
                 f"Invalid wiring:\n"
@@ -38,6 +39,11 @@ class BaseWiring(abc.ABC):
                 f"  output_index = {output_index}\n"
             )
         self.build(*args, **kwargs)
+
+    # bidirection: read-only
+    @property
+    def bidirection(self) -> int:
+        return self._bidirection
 
     # n_compartment: read-only
     @property
@@ -99,7 +105,7 @@ class BaseWiring(abc.ABC):
         # pass all the tests
         return True
 
-    def add_compartment_connection(self, src: int, dest: int):
+    def _add_compartment_single_connection(self, src: int, dest: int):
         if (src < 0 or src >= self.n_compartment 
             or dest < 0 or dest >= self.n_compartment):
             raise ValueError(
@@ -108,9 +114,15 @@ class BaseWiring(abc.ABC):
             )
         self.adjacency_matrix[src, dest] = 1
 
-    def add_compartment_double_connection(self, n1: int, n2: int):
-        self.add_compartment_connection(n1, n2)
-        self.add_compartment_connection(n2, n1)
+    def _add_compartment_double_connection(self, n1: int, n2: int):
+        self._add_compartment_single_connection(n1, n2)
+        self._add_compartment_single_connection(n2, n1)
+
+    def add_compartment_connection(self, n1: int, n2: int):
+        if self.bidirection:
+            self._add_compartment_double_connection(n1, n2)
+        else:
+            self._add_compartment_single_connection(n1, n2)
 
     @abc.abstractmethod
     def build(self, *args, **kwargs):
@@ -130,7 +142,7 @@ class SegregatedDendWiring(BaseWiring):
         """
         super().__init__(
             n_compartment = n_compartment, n_input = n_compartment,
-            output_index = list(range(n_compartment))
+            output_index = list(range(n_compartment)), bidirection = False
         )
 
     def build(self):
@@ -139,7 +151,10 @@ class SegregatedDendWiring(BaseWiring):
 
 class Kto1DendWirng(BaseWiring):
 
-    def __init__(self, k: int, n_output: int, n_input: Optional[int] = None):
+    def __init__(
+        self, k: int, n_output: int,
+        n_input: Optional[int] = None, bidirection: bool = False
+    ):
         if n_input is None:
             n_input = k * n_output
         elif n_output * k != n_input:
@@ -151,7 +166,8 @@ class Kto1DendWirng(BaseWiring):
         n_compartment = n_input + n_output
         super().__init__(
             n_compartment = n_compartment, n_input = n_input,
-            output_index = list(range(n_input, n_compartment)), k = k
+            output_index = list(range(n_input, n_compartment)),
+            bidirection = bidirection, k = k
         )
         self.k = k
 

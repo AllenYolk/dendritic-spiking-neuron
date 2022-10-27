@@ -56,7 +56,7 @@ class BaseDendCompartment(base.MemoryModule, abc.ABC):
 class PassiveDendCompartment(BaseDendCompartment):
 
     def __init__(
-        self, tau: float = 2, decay_input: bool =  True, v_rest: float = 0.,
+        self, tau: float = 2, decay_input: bool = True, v_rest: float = 0.,
         step_mode: str = "s"
     ):
         super().__init__(v_init = v_rest, step_mode = step_mode)

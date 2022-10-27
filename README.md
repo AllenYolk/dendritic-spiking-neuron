@@ -1,6 +1,6 @@
 # dendritic-spiking-neuron
 
-**Author**: [AllenYolk](mailto:2627099045@qq.com)
+**Author**: [AllenYolk](mailto:huang2627099045@gmail.com)
 
 A new dendritic computing package `dendsn` based on [pytorch](https://github.com/pytorch/pytorch) and [spikingjelly](https://github.com/fangwei123456/spikingjelly).
 Draw inspiration from the nonlinear nature of biological dendritic neurons!
