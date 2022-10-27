@@ -1,6 +1,7 @@
-from typing import Union
+from typing import Union, Sequence, Callable
 
 import torch
+import torch.nn as nn
 
 
 @torch.jit.script
@@ -40,3 +41,18 @@ def diff_mask_mult_sum(
             f"factor in diff_mask_mult_sum should be float or torch.Tensor, "
             f"but instead get {factor}."
         )
+
+
+def unfold_forward_fold(
+    x_seq: torch.Tensor, 
+    stateless_module: Union[Sequence, nn.Module, nn.Sequential, Callable]
+):
+    y_shape = [x_seq.shape[0], x_seq.shape[1]]
+    y = x_seq.flatten(start_dim = 0, end_dim = 1)
+    if isinstance(stateless_module, (list, tuple, nn.Sequential)):
+        for m in stateless_module:
+            y = m(y)
+    else:
+        y = stateless_module(y)
+    y_shape.extend(y.shape[1:])
+    return y.view(y_shape)

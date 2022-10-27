@@ -19,7 +19,13 @@ Dendritic neurons are built in a bottom-up manner in this package.
         * wiring of the compartments: `wiring.py`
     * connection from dendrite to soma: `dend_soma_conn.py`
     * soma: `spikingjelly.activation_based.neuron.py`
-* **synapse**: ???
+* **synapse**: `synapse.py`
+    * synaptic connection and weights: `synapse_conn.py`
+    * synaptic filter: `synapse_filter.py`
+* other modules: 
+    * encapsulated jit operations: `functional.py`: 
+    * stochastic spiking autograd functions: `stochastic_firing.py`
+
 
 
 ### References:

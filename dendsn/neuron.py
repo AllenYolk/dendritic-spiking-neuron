@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from spikingjelly.activation_based import neuron as sj_neuron
 
-from dendsn import dend_soma_conn, dendrite, operation
+from dendsn import dend_soma_conn, dendrite, functional
 
 
 class BaseDendNeuron(nn.Module, abc.ABC):
@@ -74,7 +74,7 @@ class VForwardDendNeuron(BaseDendNeuron):
             *v2soma.shape[:-1], self.dend_soma_conn.n_soma
         )
         v_soma = self.soma.v
-        input2soma = operation.diff_mask_mult_sum(
+        input2soma = functional.diff_mask_mult_sum(
             x1 = v2soma, x2 = v_soma,
             mask = self.dend_soma_conn.forward_adjacency_matrix,
             factor = self.forward_strength
@@ -93,7 +93,7 @@ class VForwardDendNeuron(BaseDendNeuron):
         )
         for t in range(T):
             v_soma = self.soma.v
-            input2soma = operation.diff_mask_mult_sum(
+            input2soma = functional.diff_mask_mult_sum(
                 x1 = v2soma_seq[t], x2 = v_soma,
                 mask = self.dend_soma_conn.forward_adjacency_matrix,
                 factor = self.forward_strength
@@ -129,7 +129,7 @@ class VForwardSBackwardDendNeuron(BaseDendNeuron):
             *v2soma.shape[:-1], self.dend_soma_conn.n_soma
         )
         v_soma = self.soma.v
-        input2soma = operation.diff_mask_mult_sum(
+        input2soma = functional.diff_mask_mult_sum(
             x1 = v2soma, x2 = v_soma,
             mask = self.dend_soma_conn.forward_adjacency_matrix,
             factor = self.forward_strength

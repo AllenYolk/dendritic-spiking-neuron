@@ -3,7 +3,8 @@ import argparse
 import torch
 from spikingjelly.activation_based import neuron as sj_neuron
 
-from dendsn import dend_compartment, wiring, dendrite, neuron, dend_soma_conn
+from dendsn import dend_compartment, wiring, dendrite, dend_soma_conn
+from dendsn import synapse, neuron
 
 
 def dend_compartment_test(T: int = 5, N: int  = 3):
@@ -208,6 +209,25 @@ def neuron_test(
         print(f"    spike = {by_seq_fb[t, 0]} [BiVFSB, decay input, multi-step]")
 
 
+def synapse_test(
+    T: int = 5, B: int = 2, in_features = 20, out_features = 12
+):
+    x_seq = torch.randn(size = [T, B, in_features])
+    syn = synapse.MaskedLinearIdenditySynapse(
+        in_features, out_features, bias = True, step_mode = "m"
+    )
+    y_seq = syn(x_seq)
+    syn.step_mode = "s"
+    syn.reset()
+    print(f"mask = {syn.conn.weight_mask.data}")
+    for t in range(T):
+        y = syn(x_seq[t])
+        print(f"t = {t}:")
+        print(f"    x = {x_seq[t, 0]}")
+        print(f"    y1 = {y_seq[t, 0]} [multi-step]")
+        print(f"    y2 = {y[0]} [single-step]")
+
+
 def main():
     parser = argparse.ArgumentParser(description = "dendsj test")
     parser.add_argument(
@@ -224,11 +244,14 @@ def main():
         dendrite_test()
     elif args.mode == "neuron":
         neuron_test()
+    elif args.mode == "synapse":
+        synapse_test()
     elif args.mode == "all":
         dend_compartment_test()
         wiring_test()
         dendrite_test()
         neuron_test()
+        synapse_test()
     else:
         raise ValueError(f"Invalid argument: mode = {args.mode}")
 
