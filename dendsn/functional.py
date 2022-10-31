@@ -32,6 +32,25 @@ def diff_mask_mult_sum(
     x1: torch.Tensor, x2: torch.Tensor,
     mask: torch.Tensor, factor: Union[float, torch.Tensor]
 ) -> torch.Tensor:
+    """
+    Used when computing `input_internal` in dendrites.
+    First, compute the tensor x_gap:
+        x_grap[..., i, j] = x1[..., i] - x2[..., j]
+    Then, apply the mask and the factor:
+        x_grap = x_grap * mask * factor
+    Finally, do summation along dim = -2
+        x_output = x_grap.sum(dim = -2)
+    Hence, x_output.shape = [..., x2.shape[-1]]
+
+    Args:
+        x1 (torch.Tensor)
+        x2 (torch.Tensor)
+        mask (torch.Tensor)
+        factor (Union[float, torch.Tensor])
+
+    Returns:
+        torch.Tensor
+    """
     if isinstance(factor, float):
         return diff_mask_mult_sum_factor_float(x1, x2, mask, factor)
     elif isinstance(factor, torch.Tensor):

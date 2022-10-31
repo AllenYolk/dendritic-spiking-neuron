@@ -81,7 +81,7 @@ def dendrite_test(T: int = 5, B: int = 2, N: int = 6, k: int = 3):
 
 
 def neuron_test(
-    T: int = 25, B: int = 2, N: int = 36, k1: int = 4, n_soma: int = 3,
+    T: int = 25, B: int = 2, N: int = 24, k1: int = 4, n_soma: int = 3,
     tau_dend = 3., tau_soma = 20.
 ):
     print("====="*20)

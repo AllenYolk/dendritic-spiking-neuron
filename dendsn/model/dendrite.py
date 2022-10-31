@@ -1,3 +1,10 @@
+"""
+This module defines various dendritic models for individual neurons. 
+Since we assume that all the neurons in the same layer have the same morphology,
+we only have to specify the dendritic model of a single neuron in the layer.
+That saves a large fraction of space.
+"""
+
 from typing import Union, Optional
 import abc
 
@@ -89,7 +96,7 @@ class SegregatedDend(BaseDend):
         step_mode: str = "s"
     ):
         """
-        A dendrite model with segregated wiring diagram.
+        A dendrite model (for a single neuron )with segregated wiring diagram.
         Since wiring is an instance of SegregatedDendWiring
         (n_compartment = n_input = n_output, empty adjacency matrix),
         the computation can be much simpler than that defined in BaseDend.
@@ -130,6 +137,22 @@ class VDiffDend(BaseDend):
         coupling_strength: Union[float, torch.Tensor] = 1.,
         step_mode: str = "s" 
     ):
+        """
+        A dendrite model (for a single neuron) whose internal information flow 
+        is determined by the difference in compartmental voltage.
+
+        Args:
+            compartment (dend_compartment.BaseDendCompartment):
+                the dendritic compartment dynamics model
+            wiring (wr.BaseWiring): the dendritic wiring diagram
+            coupling_strength (Union[float, torch.Tensor], optional): 
+                the coupling strength corresponding to the connections 
+                in `wiring`. If it's a torch.Tensor, its shape should be 
+                [wiring.n_compartment, wiring.n_compartment]. 
+                If it's a float, the same coupling strength is applied to all 
+                the connections. Defaults to 1. .
+            step_mode (str, optional): Defaults to "s".
+        """
         super().__init__(compartment, wiring, step_mode)
         self.coupling_strength = coupling_strength
 

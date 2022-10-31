@@ -41,6 +41,19 @@ class MaskedLinearSynapseConn(BaseSynapseConn):
         init_sparsity: float = 0.75, device = None, dtype = None,
         step_mode: str = "s"
     ):
+        """
+        nn.Linear with a 0-1 sparsity mask (to simulate synaptic connections).
+
+        Args:
+            in_features (int)
+            out_features (int)
+            bias (bool, optional): Defaults to False.
+            init_sparsity (float, optional): the sparsity of the 0-1 mask when 
+                it is initialized [higher -> sparser]. Defaults to 0.75 .
+            device (_type_, optional): Defaults to None.
+            dtype (_type_, optional): Defaults to None.
+            step_mode (str, optional): Defaults to "s".
+        """
         super().__init__(step_mode = step_mode)
         factory_kwargs = {"device": device, "dtype": dtype}
         self.in_features = in_features

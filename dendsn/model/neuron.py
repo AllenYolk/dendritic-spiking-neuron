@@ -1,3 +1,9 @@
+"""
+This module defines a series of dendritic neuron layer models (rather than 
+single neurons). Each layer consists of a set of dendritic neurons with exactly
+the same dendritic morphology.
+"""
+
 import abc
 from typing import Union, List
 
@@ -7,7 +13,6 @@ import numpy as np
 from spikingjelly.activation_based import neuron as sj_neuron
 
 from dendsn.model import dendrite
-from dendsn import functional
 
 
 class BaseDendNeuron(nn.Module, abc.ABC):
@@ -75,6 +80,23 @@ class VForwardDendNeuron(BaseDendNeuron):
         forward_strength: Union[float, torch.Tensor] = 1.,
         step_mode: str = "s"
     ):
+        """
+        A layer of dendritic neurons. The input to the soma is determined by the
+        voltage difference between the soma and the output compartments.
+
+        Args:
+            dend (dendrite.BaseDend): the dendrite model (for a single neuron)
+            soma (sj_neuron.BaseNode): the soma model (a point-neuron model)
+            soma_shape (List[int]): the shape of somatic voltage tensor. Hence, 
+                there are np.prod(soma_shape) neurons in this layer.
+            forward_strength (Union[float, torch.Tensor], optional): 
+                the coupling strength of the feed-forward connections from the
+                output compartments to the soma (defined for a single neuron). 
+                If it's a torch.Tensor, its shape should be 
+                [dend.wiring.n_output, 1]. If it's a float, the same strength
+                will be applied to all the connections. Defaults to 1. .
+            step_mode (str, optional): Defaults to "s".
+        """
         super().__init__(dend, soma, soma_shape, step_mode)
         self.forward_strength = forward_strength
 
@@ -87,8 +109,8 @@ class VForwardDendNeuron(BaseDendNeuron):
         self.v_soma_float2tensor_by_shape_ints(*v2soma.shape[:-1])
         v_soma = self.soma.v
         # v_soma.shape = [N, *self.soma_shape]
-        input2soma = (v2soma - v_soma.unsqueeze(-1)) * self.forward_strength
-        input2soma = input2soma.sum(dim = -1)
+        input2soma = (v2soma - v_soma.unsqueeze(-1)) @ self.forward_strength
+        input2soma = input2soma.squeeze(dim = -1)
         # input2soma.shape = [N, *self.soma_shape]
         soma_spike = self.soma.single_step_forward(input2soma)
         return soma_spike.reshape([N, -1])
@@ -105,7 +127,7 @@ class VForwardDendNeuron(BaseDendNeuron):
             v_soma = self.soma.v
             # v_soma.shape = [N, *self.soma_shape]
             input2soma = v2soma_seq[t] - v_soma.unsqueeze(-1)
-            input2soma = (input2soma * self.forward_strength).sum(dim = -1)
+            input2soma = (input2soma @ self.forward_strength).squeeze(dim = -1)
             # input2soma.shape = [N, *self.soma_shape]
             soma_spike = self.soma.single_step_forward(input2soma)
             soma_spike_seq.append(soma_spike.reshape(N, -1))
@@ -121,6 +143,31 @@ class VForwardSBackwardDendNeuron(BaseDendNeuron):
         backward_strength: Union[float, torch.Tensor] = 1.,
         step_mode: str = "s"
     ):
+        """
+        A layer of dendritic neurons. The input to the soma is determined by the
+        voltage difference between the soma and the output compartments. If 
+        a spike is generated in the soma, a back-propagated voltage will be 
+        added the the ouput compartments.
+
+        Args:
+            dend (dendrite.BaseDend): the dendrite model (for a single neuron)
+            soma (sj_neuron.BaseNode): the soma model (a point-neuron model)
+            soma_shape (List[int]): the shape of somatic voltage tensor. Hence, 
+                there are np.prod(soma_shape) neurons in this layer.
+            forward_strength (Union[float, torch.Tensor], optional): 
+                the coupling strength of the feed-forward connections from the
+                output compartments to the soma (defined for a single neuron). 
+                If it's a torch.Tensor, its shape should be 
+                [dend.wiring.n_output, 1]. If it's a float, the same strength
+                will be applied to all the connections. Defaults to 1..
+            backward_strength (Union[float, torch.Tensor], optional):
+                the coupling strength of the feedback connections from the
+                soma to the output compartments (defined for a single neuron). 
+                If it's a torch.Tensor, its shape should be 
+                [1, dend.wiring.n_output]. If it's a float, the same strength
+                will be applied to all the connections. Defaults to 1..
+            step_mode (str, optional): _description_. Defaults to "s".
+        """
         super().__init__(dend, soma, soma_shape, step_mode)
         self.forward_strength = forward_strength
         self.backward_strength = backward_strength
@@ -141,8 +188,8 @@ class VForwardSBackwardDendNeuron(BaseDendNeuron):
         self.v_soma_float2tensor_by_shape_ints(*v2soma.shape[:-1])
         v_soma = self.soma.v
         # v_soma.shape = [N, *self.soma_shape]
-        input2soma = (v2soma - v_soma.unsqueeze(-1)) * self.forward_strength
-        input2soma = input2soma.sum(dim = -1)
+        input2soma = (v2soma - v_soma.unsqueeze(-1)) @ self.forward_strength
+        input2soma = input2soma.squeeze(dim = -1)
         # input2soma.shape = [N, *self.soma_shape]
         soma_spike = self.soma.single_step_forward(input2soma)
         self.soma_spike_backprop(soma_spike)

@@ -11,6 +11,15 @@ class BaseSynapse(nn.Module):
         filter: synapse_filter.BaseSynapseFilter,
         step_mode: str = "s",
     ):
+        """
+        A generic synapse model consists of a synaptic connection model and 
+        a filter.
+
+        Args:
+            conn (synapse_conn.BaseSynapseConn)
+            filter (synapse_filter.BaseSynapseFilter)
+            step_mode (str, optional): Defaults to "s".
+        """
         super().__init__()
         self.conn = conn
         self.filter = filter
@@ -48,6 +57,21 @@ class MaskedLinearIdenditySynapse(BaseSynapse):
         init_sparsity: float = 0.75, device = None, dtype = None,
         step_mode: str = "s"
     ):
+        """
+        A synapse model whose connection model is a MaskedLinearSynapseConn.
+        The synaptic filter can be arbitrarily specified.
+
+        Args:
+            in_features (int): the argument for MaskedLinearSynapseConn.
+            out_features (int): the argument for MaskedLinearSynapseConn.
+            bias (bool, optional): the argument for MaskedLinearSynapseConn. 
+            init_sparsity (float, optional): the argument for MaskedLinearSynapseConn.
+                the sparsity of the 0-1 mask when it is initialized 
+                [higher -> sparser]. Defaults to False. Defaults to 0.75.
+            device (_type_, optional): Defaults to None.
+            dtype (_type_, optional): Defaults to None.
+            step_mode (str, optional): Defaults to "s".
+        """
         super().__init__(
             conn = synapse_conn.MaskedLinearSynapseConn(
                 in_features, out_features, bias, init_sparsity, device, dtype

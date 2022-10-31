@@ -1,6 +1,6 @@
 """
-This module defines the connection diagram of the dendritic compartments so that
-we can build dendrites with complex morphologies.
+This module defines the connection diagram of the dendritic compartments in one
+dendritic neuron so that we can build dendrites with complex morphologies.
 The three key components of a "compartment wiring" are:
 1. the adjacency matrix within a set of compartments
 2. a list specifying which compartments receive synaptic inputs (a.k.a. input
@@ -133,12 +133,12 @@ class SegregatedDendWiring(BaseWiring):
 
     def __init__(self, n_compartment: int):
         """
-        Segregated wiring diagram of dendritic compartments.
-        n_compartment = n_input = n_output .
-        Empty adjacency matrix.
+        The wiring diagram of segregated dendritic compartments of a single 
+        neuron where n_compartment = n_input = n_output and the adjacency matrix
+        is empty.
 
         Args:
-            n_compartment (int)
+            n_compartment (int):
         """
         super().__init__(
             n_compartment = n_compartment, n_input = n_compartment,
@@ -155,6 +155,22 @@ class Kto1DendWirng(BaseWiring):
         self, k: int, n_output: int,
         n_input: Optional[int] = None, bidirection: bool = False
     ):
+        """
+        The wiring diagram of dendritic compartments of a single neuron
+        connected in a k-to-1 manner. There are `n_output` output compartments,
+        and each of them receive information from `k` input compartments. Hence,
+        there are (k+1) * n_output compartments in total.
+
+        Args:
+            k (int)
+            n_output (int)
+            n_input (Optional[int], optional): Defaults to None. If not None,
+                should be equal to k * n_output
+            bidirection (bool, optional): Defaults to False.
+
+        Raises:
+            ValueError: n_input is not None and does not equal to k * n_output .
+        """
         if n_input is None:
             n_input = k * n_output
         elif n_output * k != n_input:

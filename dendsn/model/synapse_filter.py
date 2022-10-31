@@ -34,6 +34,12 @@ class BaseSynapseFilter(base.MemoryModule, abc.ABC):
 class IdentitySynapseFilter(BaseSynapseFilter):
 
     def __init__(self, step_mode: str = "s"):
+        """
+        This synaptic filter conducts identity mapping (thus do nothing).
+
+        Args:
+            step_mode (str, optional): Defaults to "s".
+        """
         super().__init__(step_mode = step_mode)
 
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:

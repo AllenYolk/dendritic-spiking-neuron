@@ -59,6 +59,18 @@ class PassiveDendCompartment(BaseDendCompartment):
         self, tau: float = 2, decay_input: bool = True, v_rest: float = 0.,
         step_mode: str = "s"
     ):
+        """
+        The dynamics of passive dendritic compartments. 
+        A passive dendritic compartment is just a leaky integrator without a
+        firing mechanism.
+
+        Args:
+            tau (float, optional): the time constant. Defaults to 2.
+            decay_input (bool, optional): whether the input to the compartments
+                should be divided by tau. Defaults to True.
+            v_rest (float, optional): resting potential. Defaults to 0..
+            step_mode (str, optional): Defaults to "s".
+        """
         super().__init__(v_init = v_rest, step_mode = step_mode)
         self.tau = tau
         self.decay_input = decay_input
