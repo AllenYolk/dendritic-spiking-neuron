@@ -4,8 +4,9 @@ import abc
 import torch
 import torch.nn as nn
 
-from dendsn import dend_compartment, functional
-from dendsn import wiring as wr
+from dendsn import functional
+from dendsn.model import dend_compartment
+from dendsn.model import wiring as wr
 
 
 class BaseDend(nn.Module, abc.ABC):

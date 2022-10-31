@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from dendsn import synapse_conn, synapse_filter
+from dendsn.model import synapse_conn, synapse_filter
 
 
 class BaseSynapse(nn.Module):

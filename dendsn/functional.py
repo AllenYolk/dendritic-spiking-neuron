@@ -46,7 +46,19 @@ def diff_mask_mult_sum(
 def unfold_forward_fold(
     x_seq: torch.Tensor, 
     stateless_module: Union[Sequence, nn.Module, nn.Sequential, Callable]
-):
+) -> torch.Tensor:
+    """
+    Merge the time and batch dimensions of `x_seq` into one dimension ('flod'),
+    conduct the computations defined in `stateless_module`,
+    and resume the time and batch dimensions of the outcome ('unfold').
+
+    Args:
+        x_seq (torch.Tensor): with shape [T, N, *input_shape]
+        stateless_module (Union[Sequence, nn.Module, nn.Sequential, Callable])
+
+    Returns:
+        torch.Tensor: with shape [T, N, *output_shape]
+    """
     y_shape = [x_seq.shape[0], x_seq.shape[1]]
     y = x_seq.flatten(start_dim = 0, end_dim = 1)
     if isinstance(stateless_module, (list, tuple, nn.Sequential)):

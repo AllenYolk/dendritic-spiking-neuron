@@ -1,12 +1,13 @@
 import abc
-from typing import Union, Optional, List
+from typing import Union
 from numpy import isin
 
 import torch
 import torch.nn as nn
 from spikingjelly.activation_based import neuron as sj_neuron
 
-from dendsn import dend_soma_conn, dendrite, functional
+from dendsn.model import dend_soma_conn, dendrite
+from dendsn import functional
 
 
 class BaseDendNeuron(nn.Module, abc.ABC):

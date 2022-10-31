@@ -3,8 +3,9 @@ import argparse
 import torch
 from spikingjelly.activation_based import neuron as sj_neuron
 
-from dendsn import dend_compartment, wiring, dendrite, dend_soma_conn
-from dendsn import synapse, neuron
+from dendsn.model import dend_compartment, wiring, dendrite, dend_soma_conn
+from dendsn.model import synapse
+from dendsn.model import neuron
 
 
 def dend_compartment_test(T: int = 5, N: int  = 3):
