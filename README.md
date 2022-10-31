@@ -13,15 +13,15 @@ The model in `dendsn` is based on:
 
 Dendritic neurons are built in a bottom-up manner in this package.
 
-* **dendritic neuron**: `neuron.py` 
-    * dendrite: `dendrite.py`
-        * dendritic compartments: `dend_compartment.py`
-        * wiring of the compartments: `wiring.py`
-    * connection from dendrite to soma: `dend_soma_conn.py`
+* **dendritic neuron**: `model/neuron.py` 
+    * dendrite: `model/dendrite.py`
+        * dendritic compartments: `model/dend_compartment.py`
+        * wiring of the compartments: `model/wiring.py`
+    * connection from dendrite to soma: `model/dend_soma_conn.py`
     * soma: `spikingjelly.activation_based.neuron.py`
-* **synapse**: `synapse.py`
-    * synaptic connection and weights: `synapse_conn.py`
-    * synaptic filter: `synapse_filter.py`
+* **synapse**: `model/synapse.py`
+    * synaptic connection and weights: `model/synapse_conn.py`
+    * synaptic filter: `model/synapse_filter.py`
 * other modules: 
     * encapsulated jit operations: `functional.py`: 
     * stochastic spiking autograd functions: `stochastic_firing.py`

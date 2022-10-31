@@ -61,10 +61,12 @@ class BaseDend(nn.Module, abc.ABC):
 
     @abc.abstractmethod
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x.shape = [N, *soma_shape, self.wiring.n_input]
         pass
 
     @abc.abstractmethod
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
+        # x.shape = [T, N, *soma_shape, self.wiring.n_input]
         pass
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

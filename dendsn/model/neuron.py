@@ -1,12 +1,12 @@
 import abc
-from typing import Union
-from numpy import isin
+from typing import Union, List
 
 import torch
 import torch.nn as nn
+import numpy as np
 from spikingjelly.activation_based import neuron as sj_neuron
 
-from dendsn.model import dend_soma_conn, dendrite
+from dendsn.model import dendrite
 from dendsn import functional
 
 
@@ -14,14 +14,23 @@ class BaseDendNeuron(nn.Module, abc.ABC):
 
     def __init__(
         self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode,
-        dend_soma_conn: dend_soma_conn.BaseDendSomaConn,
+        soma_shape: List[int],
         step_mode: str = "s"
     ):
         super().__init__()
         self.dend = dend
         self.soma = soma
-        self.dend_soma_conn = dend_soma_conn
+        self._soma_shape = soma_shape
+        self._n_soma = np.prod(soma_shape)
         self.step_mode = step_mode
+
+    @property
+    def soma_shape(self) -> List[int]:
+        return self._soma_shape
+
+    @property
+    def n_soma(self) -> int:
+        return self._n_soma
 
     def reset(self):
         self.dend.reset()
@@ -61,46 +70,45 @@ class BaseDendNeuron(nn.Module, abc.ABC):
 class VForwardDendNeuron(BaseDendNeuron):
 
     def __init__(
-        self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode, 
-        dend_soma_conn: dend_soma_conn.BaseDendSomaConn,
+        self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode,
+        soma_shape: List[int],
         forward_strength: Union[float, torch.Tensor] = 1.,
         step_mode: str = "s"
     ):
-        super().__init__(dend, soma, dend_soma_conn, step_mode)
+        super().__init__(dend, soma, soma_shape, step_mode)
         self.forward_strength = forward_strength
 
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x.shape = [N, self.n_soma * self.dend.wiring.n_input]
+        N = x.shape[0]
+        x = x.reshape([N, *self.soma_shape, -1])
         v2soma = self.dend.single_step_forward(x)
-        self.v_soma_float2tensor_by_shape_ints(
-            *v2soma.shape[:-1], self.dend_soma_conn.n_soma
-        )
+        # v2soma.shape = [N, *self.soma_shape, self.dend.wiring.n_output]
+        self.v_soma_float2tensor_by_shape_ints(*v2soma.shape[:-1])
         v_soma = self.soma.v
-        input2soma = functional.diff_mask_mult_sum(
-            x1 = v2soma, x2 = v_soma,
-            mask = self.dend_soma_conn.forward_adjacency_matrix,
-            factor = self.forward_strength
-        )
-        # input2soma.shape = [..., n_soma]
+        # v_soma.shape = [N, *self.soma_shape]
+        input2soma = (v2soma - v_soma.unsqueeze(-1)) * self.forward_strength
+        input2soma = input2soma.sum(dim = -1)
+        # input2soma.shape = [N, *self.soma_shape]
         soma_spike = self.soma.single_step_forward(input2soma)
-        return soma_spike
+        return soma_spike.reshape([N, -1])
 
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
+        # x_seq = [T, N, self.n_soma * self.dend.wiring.n_input]
+        T, N = x_seq.shape[0], x_seq.shape[1]
+        x_seq = x_seq.reshape([T, N, *self.soma_shape, -1])
         v2soma_seq = self.dend.multi_step_forward(x_seq)
-        # v2soma_seq.shape = [T, ..., n_output_compartment]
-        T = x_seq.shape[0]
+        # v2soma_seq.shape = [T, N, *self.soma_shape, self.dend.wiring.n_output]
         soma_spike_seq = []
-        self.v_soma_float2tensor_by_shape_ints(
-            *v2soma_seq[0].shape[:-1], self.dend_soma_conn.n_soma
-        )
+        self.v_soma_float2tensor_by_shape_ints(*v2soma_seq[0].shape[:-1])
         for t in range(T):
             v_soma = self.soma.v
-            input2soma = functional.diff_mask_mult_sum(
-                x1 = v2soma_seq[t], x2 = v_soma,
-                mask = self.dend_soma_conn.forward_adjacency_matrix,
-                factor = self.forward_strength
-            )
+            # v_soma.shape = [N, *self.soma_shape]
+            input2soma = v2soma_seq[t] - v_soma.unsqueeze(-1)
+            input2soma = (input2soma * self.forward_strength).sum(dim = -1)
+            # input2soma.shape = [N, *self.soma_shape]
             soma_spike = self.soma.single_step_forward(input2soma)
-            soma_spike_seq.append(soma_spike)
+            soma_spike_seq.append(soma_spike.reshape(N, -1))
         return torch.stack(soma_spike_seq)
 
 
@@ -108,36 +116,37 @@ class VForwardSBackwardDendNeuron(BaseDendNeuron):
 
     def __init__(
         self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode, 
-        dend_soma_conn: dend_soma_conn.BaseDendSomaConn,
+        soma_shape: List[int],
         forward_strength: Union[float, torch.Tensor] = 1.,
         backward_strength: Union[float, torch.Tensor] = 1.,
         step_mode: str = "s"
     ):
-        super().__init__(dend, soma, dend_soma_conn, step_mode)
+        super().__init__(dend, soma, soma_shape, step_mode)
         self.forward_strength = forward_strength
         self.backward_strength = backward_strength
 
     def soma_spike_backprop(self, soma_spike: torch.Tensor):
-        # soma_spike.shape = [..., n_soma]
-        conn = (self.dend_soma_conn.backward_adjacency_matrix 
-                * self.backward_strength)
-        bp_v = soma_spike @ conn # [..., n_output_compartment]
+        # soma_spike.shape = [N, *self.soma_shape]
+        conn = torch.ones(size = [1, self.dend.wiring.n_output])
+        conn = conn * self.backward_strength
+        bp_v = soma_spike.unsqueeze(-1) @ conn 
+        # bp_v = [N, *self.soma_shape, self.dend.wiring.n_output]
         self.dend.compartment.v[..., self.dend.wiring.output_index] += bp_v
 
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
+        N = x.shape[0]
+        x = x.reshape([N, *self.soma_shape, -1])
         v2soma = self.dend.single_step_forward(x)
-        self.v_soma_float2tensor_by_shape_ints(
-            *v2soma.shape[:-1], self.dend_soma_conn.n_soma
-        )
+        # v2soma.shape = [N, *self.soma_shape, self.dend.wiring.n_output]
+        self.v_soma_float2tensor_by_shape_ints(*v2soma.shape[:-1])
         v_soma = self.soma.v
-        input2soma = functional.diff_mask_mult_sum(
-            x1 = v2soma, x2 = v_soma,
-            mask = self.dend_soma_conn.forward_adjacency_matrix,
-            factor = self.forward_strength
-        )
+        # v_soma.shape = [N, *self.soma_shape]
+        input2soma = (v2soma - v_soma.unsqueeze(-1)) * self.forward_strength
+        input2soma = input2soma.sum(dim = -1)
+        # input2soma.shape = [N, *self.soma_shape]
         soma_spike = self.soma.single_step_forward(input2soma)
         self.soma_spike_backprop(soma_spike)
-        return soma_spike
+        return soma_spike.reshape([N, -1])
 
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         T = x_seq.shape[0]
