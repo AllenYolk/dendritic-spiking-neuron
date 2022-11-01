@@ -6,6 +6,7 @@ from spikingjelly.activation_based import neuron as sj_neuron
 from dendsn.model import dend_compartment, wiring, dendrite 
 from dendsn.model import synapse
 from dendsn.model import neuron
+from dendsn import stochastic_firing
 
 
 def dend_compartment_test(T: int = 5, N: int  = 3):
@@ -98,7 +99,9 @@ def neuron_test(
             ),
             coupling_strength = (tau_dend - 1.) / k1# dynamics analysis
         ),
-        soma = sj_neuron.LIFNode(tau = tau_soma),
+        soma = sj_neuron.LIFNode(
+            tau = tau_soma, 
+        ),
         soma_shape = [n_soma],
         step_mode = "m"
     )
