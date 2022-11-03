@@ -1,7 +1,11 @@
 import argparse
 
 import torch
+import torch.nn as nn
+import torch.nn.init as init
+import torch.optim as optim
 from spikingjelly.activation_based import neuron as sj_neuron
+from spikingjelly.activation_based import functional
 import matplotlib.pyplot as plt
 
 from dendsn.model import dend_compartment, wiring, dendrite 
@@ -311,6 +315,54 @@ def rate_plot_test():
     ax.vlines(x = [1.], ymin = 0, ymax = 5., linestyles = "dotted", colors = "r")
     plt.show()
 
+
+def gradient_test(
+    T: int = 25, B: int = 32, M: int = 32, N: int = 24, 
+    k1: int = 4, n_soma: int = 3, tau_dend = 3., tau_soma = 20.,
+    epochs: int = 1000
+):
+    syn = nn.Linear(in_features = M, out_features = N, bias = False)
+    #init.uniform_(syn.weight.data)
+    dn = neuron.VForwardDendNeuron(
+        dend = dendrite.VDiffDend(
+            compartment = dend_compartment.PassiveDendCompartment(
+                tau = tau_dend, decay_input = True
+            ),
+            wiring = wiring.Kto1DendWirng(
+                k = k1, n_output = N//n_soma//k1, n_input = N//n_soma
+            ),
+            coupling_strength = (tau_dend - 1.) / k1# dynamics analysis
+        ),
+        soma = sj_neuron.LIFNode(
+            tau = tau_soma,
+            surrogate_function = stochastic_firing.LogisticStochasticFiring(
+                f_thres = 1., beta = 5.0
+            ),
+        ),
+        soma_shape = [n_soma],
+        step_mode = "m"
+    )
+    net = nn.Sequential(syn, dn)
+    criterion = nn.MSELoss()
+    optimizer = optim.SGD(params = net.parameters(), lr = 1)
+
+    for epoch in range(epochs):
+        x_seq = torch.rand(size = [T, B, M])
+        functional.reset_net(net)
+        spike_seq = net(x_seq)
+        target = torch.ones_like(spike_seq)
+        loss = criterion(spike_seq, target)
+        optimizer.zero_grad()
+        loss.backward()
+        print(net[0].weight.grad.mean())
+        optimizer.step()
+
+        print(f"epoch {epoch}: loss = {loss.item()}")
+
+    print(spike_seq[:, 0, :])
+
+
+
 def main():
     parser = argparse.ArgumentParser(description = "dendsj test")
     parser.add_argument(
@@ -333,6 +385,8 @@ def main():
         stochastic_test()
     elif args.mode == "rate_plot":
         rate_plot_test()
+    elif args.mode == "gradient":
+        gradient_test()
     elif args.mode == "all":
         dend_compartment_test()
         wiring_test()
@@ -341,6 +395,7 @@ def main():
         synapse_test()
         stochastic_test()
         rate_plot_test()
+        gradient_test()
     else:
         raise ValueError(f"Invalid argument: mode = {args.mode}")
 

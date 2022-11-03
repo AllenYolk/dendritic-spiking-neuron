@@ -11,11 +11,12 @@ import torch
 import torch.nn as nn
 import numpy as np
 from spikingjelly.activation_based import neuron as sj_neuron
+from spikingjelly.activation_based import base
 
 from dendsn.model import dendrite
 
 
-class BaseDendNeuron(nn.Module, abc.ABC):
+class BaseDendNeuron(base.MemoryModule, abc.ABC):
 
     def __init__(
         self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode,

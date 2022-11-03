@@ -10,13 +10,14 @@ import abc
 
 import torch
 import torch.nn as nn
+from spikingjelly.activation_based import base
 
 from dendsn import functional
 from dendsn.model import dend_compartment
 from dendsn.model import wiring as wr
 
 
-class BaseDend(nn.Module, abc.ABC):
+class BaseDend(base.MemoryModule, abc.ABC):
 
     def __init__(
         self, compartment: dend_compartment.BaseDendCompartment,

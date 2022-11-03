@@ -59,7 +59,7 @@ def logistic_stochastic_firing_backward(
     grad_output: torch.Tensor, x: torch.Tensor,
     phi: float, beta: float, theta: float
 ):
-    sg = F.sigmoid(beta * (x - theta))
+    sg = (beta * (x - theta)).sigmoid()
     return grad_output * phi * (1. - sg) * sg * beta
 
 
