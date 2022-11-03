@@ -2,6 +2,7 @@ import argparse
 
 import torch
 from spikingjelly.activation_based import neuron as sj_neuron
+import matplotlib.pyplot as plt
 
 from dendsn.model import dend_compartment, wiring, dendrite 
 from dendsn.model import synapse
@@ -99,9 +100,7 @@ def neuron_test(
             ),
             coupling_strength = (tau_dend - 1.) / k1# dynamics analysis
         ),
-        soma = sj_neuron.LIFNode(
-            tau = tau_soma, 
-        ),
+        soma = sj_neuron.LIFNode(tau = tau_soma,),
         soma_shape = [n_soma],
         step_mode = "m"
     )
@@ -223,6 +222,95 @@ def synapse_test(
         print(f"    y2 = {y[0]} [single-step]")
 
 
+def stochastic_test(
+    T: int = 25, B: int = 1, N: int = 96, k1: int = 4, n_soma: int = 3,
+    tau_dend = 3., tau_soma = 20.
+):
+    print("====="*20)
+    print("stochastic firing test:")
+    x_seq = torch.randn(size = [T, B, N]) + 3
+
+    stf = stochastic_firing.ExpStochasticFiring(
+        f_thres = 0.9, beta = 5., spiking = True
+    )
+    stf2 = stochastic_firing.LogisticStochasticFiring(
+        f_thres = 0.9, beta = 5., spiking = True
+    )
+
+    dn = neuron.VForwardDendNeuron(
+        dend = dendrite.VDiffDend(
+            compartment = dend_compartment.PassiveDendCompartment(
+                tau = tau_dend, decay_input = True
+            ),
+            wiring = wiring.Kto1DendWirng(
+                k = k1, n_output = N//n_soma//k1, n_input = N//n_soma
+            ),
+            coupling_strength = (tau_dend - 1.) / k1# dynamics analysis
+        ),
+        soma = sj_neuron.LIFNode(
+            tau = tau_soma, surrogate_function = stf,
+        ),
+        soma_shape = [n_soma],
+        step_mode = "s"
+    )
+    dn2 = neuron.VForwardDendNeuron(
+        dend = dendrite.VDiffDend(
+            compartment = dend_compartment.PassiveDendCompartment(
+                tau = tau_dend, decay_input = True
+            ),
+            wiring = wiring.Kto1DendWirng(
+                k = k1, n_output = N//n_soma//k1, n_input = N//n_soma
+            ),
+            coupling_strength = (tau_dend - 1.) / k1# dynamics analysis
+        ),
+        soma = sj_neuron.LIFNode(
+            tau = tau_soma, surrogate_function = stf2,
+        ),
+        soma_shape = [n_soma],
+        step_mode = "s"
+    )
+
+    for t in range(T):
+        y = dn(x_seq[t])
+        y2 = dn2(x_seq[t])
+        print(f"t = {t}")
+        print(
+            f"    v_dend = "
+            f"{dn.dend.compartment.v[0, :, dn.dend.wiring.output_index]}"
+            f"[exp, single step]"
+        )
+        print(
+            f"    v_dend = "
+            f"{dn2.dend.compartment.v[0, :, dn.dend.wiring.output_index]}"
+            f"[logistic, single step]"
+        )
+        print(f"    v_soma = {dn.soma.v[0]} [exp, single step]")
+        print(f"    v_soma = {dn2.soma.v[0]} [logistic, single step]")
+        print(
+            f"    firing rate = {stf.rate_function(dn.soma.v[0] - 1.)}"
+            f"[exp, single step]"
+        )
+        print(
+            f"    firing rate = {stf2.rate_function(dn2.soma.v[0] - 1.)}"
+            f"[logistic, single step]"
+        )
+        print(f"    spike = {y[0]} [exp, single step]")
+        print(f"    spike = {y2[0]} [logistic, single step]")
+
+
+def rate_plot_test():
+    _, ax = plt.subplots()
+    stf_exp = stochastic_firing.ExpStochasticFiring(
+        f_thres = 1., beta = 5., theta = 1.
+    )
+    stf_logistic = stochastic_firing.LogisticStochasticFiring(
+        f_thres = 1., beta = 5., theta = 1.
+    )
+    stf_exp.plot_firing_rate(ax = ax)
+    stf_logistic.plot_firing_rate(ax = ax)
+    ax.vlines(x = [1.], ymin = 0, ymax = 5., linestyles = "dotted", colors = "r")
+    plt.show()
+
 def main():
     parser = argparse.ArgumentParser(description = "dendsj test")
     parser.add_argument(
@@ -241,12 +329,18 @@ def main():
         neuron_test()
     elif args.mode == "synapse":
         synapse_test()
+    elif args.mode == "stochastic":
+        stochastic_test()
+    elif args.mode == "rate_plot":
+        rate_plot_test()
     elif args.mode == "all":
         dend_compartment_test()
         wiring_test()
         dendrite_test()
         neuron_test()
         synapse_test()
+        stochastic_test()
+        rate_plot_test()
     else:
         raise ValueError(f"Invalid argument: mode = {args.mode}")
 

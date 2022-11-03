@@ -109,8 +109,8 @@ class VForwardDendNeuron(BaseDendNeuron):
         self.v_soma_float2tensor_by_shape_ints(*v2soma.shape[:-1])
         v_soma = self.soma.v
         # v_soma.shape = [N, *self.soma_shape]
-        input2soma = (v2soma - v_soma.unsqueeze(-1)) @ self.forward_strength
-        input2soma = input2soma.squeeze(dim = -1)
+        input2soma = (v2soma - v_soma.unsqueeze(-1)) * self.forward_strength
+        input2soma = input2soma.sum(dim = -1)
         # input2soma.shape = [N, *self.soma_shape]
         soma_spike = self.soma.single_step_forward(input2soma)
         return soma_spike.reshape([N, -1])
@@ -127,7 +127,7 @@ class VForwardDendNeuron(BaseDendNeuron):
             v_soma = self.soma.v
             # v_soma.shape = [N, *self.soma_shape]
             input2soma = v2soma_seq[t] - v_soma.unsqueeze(-1)
-            input2soma = (input2soma @ self.forward_strength).squeeze(dim = -1)
+            input2soma = (input2soma * self.forward_strength).sum(dim = -1)
             # input2soma.shape = [N, *self.soma_shape]
             soma_spike = self.soma.single_step_forward(input2soma)
             soma_spike_seq.append(soma_spike.reshape(N, -1))
@@ -188,8 +188,8 @@ class VForwardSBackwardDendNeuron(BaseDendNeuron):
         self.v_soma_float2tensor_by_shape_ints(*v2soma.shape[:-1])
         v_soma = self.soma.v
         # v_soma.shape = [N, *self.soma_shape]
-        input2soma = (v2soma - v_soma.unsqueeze(-1)) @ self.forward_strength
-        input2soma = input2soma.squeeze(dim = -1)
+        input2soma = (v2soma - v_soma.unsqueeze(-1)) * self.forward_strength
+        input2soma = input2soma.sum(dim = -1)
         # input2soma.shape = [N, *self.soma_shape]
         soma_spike = self.soma.single_step_forward(input2soma)
         self.soma_spike_backprop(soma_spike)

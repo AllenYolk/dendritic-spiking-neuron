@@ -25,7 +25,7 @@ class BaseStochasticFiring(nn.Module, abc.ABC):
         pass
 
     @abc.abstractmethod
-    def rate_function(self, v: torch.Tenosr) -> torch.Tensor:
+    def rate_function(self, v: torch.Tensor) -> torch.Tensor:
         pass
 
     def forward(self, v: torch.Tensor) -> torch.Tensor:
@@ -34,13 +34,13 @@ class BaseStochasticFiring(nn.Module, abc.ABC):
         else:
             return self.rate_function(v)
 
-    def plot_firing_rate(self):
-        v = torch.linspace(-2, 2, 0.05)
+    def plot_firing_rate(self, ax = None):
+        v = torch.arange(-1.25, 1.25, 0.025)
         r = self.rate_function(v)
-        _, ax = plt.subplots()
+        if ax is None:
+            _, ax = plt.subplots()
         ax.plot(v, r)
-        ax.set(xtitle = "v", ytitle = "firing_rate")
-        plt.show()
+        ax.set(xlabel = "v", ylabel = "firing_rate")
 
 
 @torch.jit.script
@@ -51,7 +51,7 @@ def _stochastic_firing(firing_rate: torch.Tensor):
 
 @torch.jit.script
 def tri_param_logistic(x: torch.Tensor, phi: float, beta: float, theta: float):
-    return phi * F.sigmoid(beta * (x - theta))
+    return phi * ((beta * (x - theta)).sigmoid())
 
 
 @torch.jit.script
@@ -85,19 +85,38 @@ class logistic_stochastic_firing(torch.autograd.Function):
 
 class LogisticStochasticFiring(BaseStochasticFiring):
 
-    def __init__(self, f_max: float, beta: float, theta: float, spiking: bool):
+    def __init__(
+        self, f_thres: float, beta: float, theta: float = 0.,
+        spiking: bool = True
+    ):
+        """
+        A wrapper for logistic stochastic firing function.
+        The firing rate can be computed as:
+            freq(v) = 2*f_thres / (1 + exp(-beta * (x - theta)))
+        Notice that if the function is used as the spiking function for
+        spikingjelly.activation_based.BaseNode (i.e. the `surrogate_function`
+        argument), theta should be set to 0 (since threshold has already been 
+        subtracted from v in spikingjelly).
+
+        Args:
+            f_thres (float): f_thres = 0.5 * f_max
+            beta (float)
+            theta (float, optional): Defaults to 0. .
+            spiking (bool, optional): whether returns spikes or firing rates. 
+                Defaults to True (returns spikes).
+        """
         super().__init__(spiking)
-        self.f_max = f_max
+        self.f_thres = f_thres
         self.beta = beta
         self.theta = theta
 
     def spiking_function(self, v: torch.Tensor) -> torch.Tensor:
         return logistic_stochastic_firing.apply(
-            v, self.f_max, self.beta, self.theta
+            v, 2*self.f_thres, self.beta, self.theta
         )
 
-    def rate_function(self, v: torch.Tenosr) -> torch.Tensor:
-        return tri_param_logistic(v, self.f_max, self.beta, self.theta)
+    def rate_function(self, v: torch.Tensor) -> torch.Tensor:
+        return tri_param_logistic(v, 2*self.f_thres, self.beta, self.theta)
 
 
 @torch.jit.script
@@ -139,7 +158,26 @@ class exponential_stochastic_firing(torch.autograd.Function):
 
 class ExpStochasticFiring(BaseStochasticFiring):
 
-    def __init__(self, f_thres: float, beta: float, theta: float, spiking: bool):
+    def __init__(
+        self, f_thres: float, beta: float, theta: float = 0.,
+        spiking: bool = True
+    ):
+        """
+        A wrapper for exponential stochastic firing function.
+        The firing rate can be computed as:
+            freq(v) = f_thres * exp(beta * (v - theta))
+        Notice that if the function is used as the spiking function for
+        spikingjelly.activation_based.BaseNode (i.e. the `surrogate_function`
+        argument), theta should be set to 0. (since threshold has already been
+        subtracted from v in spikingjelly).
+
+        Args:
+            f_thres (float)
+            beta (float)
+            theta (float, optional): Defaults to 0..
+            spiking (bool, optional): whether returns spikes or firing rates. 
+                Defaults to True (returns spikes).
+        """
         super().__init__(spiking)
         self.f_thres = f_thres
         self.beta = beta
@@ -150,9 +188,5 @@ class ExpStochasticFiring(BaseStochasticFiring):
             v, self.f_thres, self.beta, self.theta
         )
 
-    def rate_function(self, v: torch.Tenosr) -> torch.Tensor:
+    def rate_function(self, v: torch.Tensor) -> torch.Tensor:
         return tri_param_exp(v, self.f_thres, self.beta, self.theta)
-
-
-if __name__ == "__main__":
-    pass
