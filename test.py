@@ -6,7 +6,9 @@ import torch.nn.init as init
 import torch.optim as optim
 from spikingjelly.activation_based import neuron as sj_neuron
 from spikingjelly.activation_based import functional
+from spikingjelly.activation_based import surrogate
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 from dendsn.model import dend_compartment, wiring, dendrite 
 from dendsn.model import synapse
@@ -319,7 +321,8 @@ def rate_plot_test():
 def gradient_test(
     T: int = 25, B: int = 32, M: int = 32, N: int = 24, 
     k1: int = 4, n_soma: int = 3, tau_dend = 3., tau_soma = 20.,
-    epochs: int = 1000
+    iterations: int = 10000, lr = 1.,
+    surrogate_function = surrogate.Sigmoid()
 ):
     syn = nn.Linear(in_features = M, out_features = N, bias = False)
     #init.uniform_(syn.weight.data)
@@ -335,32 +338,77 @@ def gradient_test(
         ),
         soma = sj_neuron.LIFNode(
             tau = tau_soma,
-            surrogate_function = stochastic_firing.LogisticStochasticFiring(
-                f_thres = 1., beta = 5.0
-            ),
+            surrogate_function = surrogate_function
         ),
         soma_shape = [n_soma],
         step_mode = "m"
     )
     net = nn.Sequential(syn, dn)
-    criterion = nn.MSELoss()
-    optimizer = optim.SGD(params = net.parameters(), lr = 1)
 
-    for epoch in range(epochs):
+    syn2 = nn.Linear(in_features = M, out_features = N, bias = False)
+    sn = sj_neuron.LIFNode(
+        tau = tau_soma, 
+        surrogate_function = surrogate_function,
+        step_mode = "m"
+    )
+    net2 = nn.Sequential(
+        nn.Linear(in_features = M, out_features = N, bias = False),
+        sj_neuron.LIFNode(
+            tau = tau_soma, 
+            surrogate_function = surrogate_function,
+            step_mode = "m"
+        ),
+        nn.Linear(in_features = N, out_features = n_soma, bias = False),
+        sj_neuron.LIFNode(
+            tau = tau_soma, 
+            surrogate_function = surrogate_function,
+            step_mode = "m"
+        ),
+    )
+
+    criterion = nn.MSELoss()
+    optimizer = optim.SGD(params = net.parameters(), lr = lr)
+    optimizer2 = optim.SGD(params = net2.parameters(), lr = lr)
+
+    l1 = []
+    l2 = []
+    for iteration in tqdm(range(iterations)):
         x_seq = torch.rand(size = [T, B, M])
         functional.reset_net(net)
+        functional.reset_net(net2)
         spike_seq = net(x_seq)
+        spike_seq2 = net2(x_seq)
         target = torch.ones_like(spike_seq)
-        loss = criterion(spike_seq, target)
+        target2 = torch.ones_like(spike_seq2)
+        loss = criterion(spike_seq[1:], target[1:])
+        loss2 = criterion(spike_seq2[1:], target2[1:])
         optimizer.zero_grad()
+        optimizer2.zero_grad()
         loss.backward()
-        print(net[0].weight.grad.mean())
+        loss2.backward()
         optimizer.step()
+        optimizer2.step()
 
-        print(f"epoch {epoch}: loss = {loss.item()}")
+        #print(
+        #    f"iteration {iteration}: "
+        #    f"loss1 = {loss.item()}, loss2 = {loss2.item()}"
+        #)
+        l1.append(loss.item())
+        l2.append(loss2.item())
 
-    print(spike_seq[:, 0, :])
+    print(spike_seq.mean(dim = [1, 2]))
+    print(spike_seq2.mean(dim = [1, 2]))
 
+    plt.style.use("ggplot")
+    f, (ax0, ax1) = plt.subplots(ncols = 2)
+    f.set_size_inches(w = 12, h = 4)
+    ax0.plot(range(iterations), l1, label = "dendritic neuron")
+    ax0.plot(range(iterations), l2, label = "point neuron")
+    ax0.set(xlabel = "iterations", ylabel = "loss")
+    ax0.legend()
+    im = ax1.matshow(net[0].weight.data)
+    ax1.figure.colorbar(im)
+    plt.show()
 
 
 def main():
