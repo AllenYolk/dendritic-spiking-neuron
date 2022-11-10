@@ -3,6 +3,7 @@ import abc
 import torch
 import torch.nn as nn
 from spikingjelly.activation_based import base
+from spikingjelly.activation_based import neuron
 
 
 class BaseSynapseFilter(base.MemoryModule, abc.ABC):
@@ -47,3 +48,31 @@ class IdentitySynapseFilter(BaseSynapseFilter):
 
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         return x_seq
+
+
+class LISynapseFilter(BaseSynapseFilter):
+
+    def __init__(self, tau: float, step_mode: str = "s"):
+        super().__init__(step_mode)
+        self.tau = tau
+        self.leaky_integrator = neuron.LIFNode(
+            tau = tau, decay_input = False, v_threshold = float("inf"),
+            step_mode = step_mode
+        )
+
+    def reset(self):
+        self.leaky_integrator.reset()
+
+    @property
+    def state(self) -> torch.Tensor:
+        return self.leaky_integrator.v
+
+    def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.leaky_integrator.single_step_forward(x)
+        return self.state
+
+    def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
+        self.leaky_integrator.store_v_seq = True
+        self.leaky_integrator.multi_step_forward(x_seq)
+        self.leaky_integrator.store_v_seq = False
+        return self.v_seq
