@@ -7,6 +7,7 @@ import torch.optim as optim
 from spikingjelly.activation_based import neuron as sj_neuron
 from spikingjelly.activation_based import functional
 from spikingjelly.activation_based import surrogate
+from spikingjelly.activation_based import layer
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
@@ -212,6 +213,8 @@ def neuron_test(
 def synapse_test(
     T: int = 5, B: int = 2, in_features = 20, out_features = 12
 ):
+    print("====="*20)
+    print("synapse model test:")
     x_seq = torch.randn(size = [T, B, in_features])
     syn = synapse.MaskedLinearIdenditySynapse(
         in_features, out_features, bias = True, step_mode = "m"
@@ -305,6 +308,8 @@ def stochastic_test(
 
 
 def rate_plot_test():
+    print("====="*20)
+    print("rate plot test:")
     _, ax = plt.subplots()
     stf_exp = stochastic_firing.ExpStochasticFiring(
         f_thres = 1., beta = 5., theta = 1.
@@ -324,6 +329,8 @@ def gradient_test(
     iterations: int = 10000, lr = 1.,
     surrogate_function = surrogate.Sigmoid()
 ):
+    print("====="*20)
+    print("single-layer gradient BP test:")
     syn = nn.Linear(in_features = M, out_features = N, bias = False)
     #init.uniform_(syn.weight.data)
     dn = neuron.VForwardDendNeuron(
@@ -345,12 +352,6 @@ def gradient_test(
     )
     net = nn.Sequential(syn, dn)
 
-    syn2 = nn.Linear(in_features = M, out_features = N, bias = False)
-    sn = sj_neuron.LIFNode(
-        tau = tau_soma, 
-        surrogate_function = surrogate_function,
-        step_mode = "m"
-    )
     net2 = nn.Sequential(
         nn.Linear(in_features = M, out_features = N, bias = False),
         sj_neuron.LIFNode(
@@ -411,6 +412,68 @@ def gradient_test(
     plt.show()
 
 
+def conv_test(
+    T: int = 25, B: int = 32, C1: int = 3, C2: int = 24,
+    h: int = 4, w: int = 5,
+    k1: int = 4, soma_channel: int = 3, tau_dend = 3., tau_soma = 20.,
+    iterations: int = 10000, lr = 1.,
+    surrogate_function = surrogate.Sigmoid()
+):
+    print("====="*20)
+    print("convolution test:")
+    syn = layer.Conv2d(C1, C2, kernel_size = 2, stride = 1, step_mode = "m")
+    #init.uniform_(syn.weight.data)
+    dn = neuron.VForwardDendNeuron(
+        dend = dendrite.VDiffDend(
+            compartment = dend_compartment.PassiveDendCompartment(
+                tau = tau_dend, decay_input = True
+            ),
+            wiring = wiring.Kto1DendWirng(
+                k = k1, n_output = C2//k1//soma_channel,
+                n_input = C2//soma_channel
+            ),
+            coupling_strength = (tau_dend - 1.) / k1# dynamics analysis
+        ),
+        soma = sj_neuron.LIFNode(
+            tau = tau_soma,
+            surrogate_function = surrogate_function
+        ),
+        soma_shape = [soma_channel, h-1, w-1],
+        step_mode = "m"
+    )
+    net = nn.Sequential(syn, dn)
+
+    criterion = nn.MSELoss()
+    optimizer = optim.SGD(params = net.parameters(), lr = lr)
+
+    l1 = []
+    for iteration in tqdm(range(iterations)):
+        x_seq = torch.rand(size = [T, B, C1, h, w])
+        functional.reset_net(net)
+        spike_seq = net(x_seq)
+        target = torch.ones_like(spike_seq)
+        loss = criterion(spike_seq[1:], target[1:])
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        #print(
+        #    f"iteration {iteration}: "
+        #    f"loss1 = {loss.item()}, loss2 = {loss2.item()}"
+        #)
+        l1.append(loss.item())
+
+    print(spike_seq.shape)
+    print(spike_seq.mean(dim = [1, 2, 3, 4]))
+
+    plt.style.use("ggplot")
+    f, ax0 = plt.subplots()
+    f.set_size_inches(w = 6, h = 4)
+    ax0.plot(range(iterations), l1, label = "dendritic neuron")
+    ax0.set(xlabel = "iterations", ylabel = "loss")
+    ax0.legend()
+    plt.show()
+
 def main():
     parser = argparse.ArgumentParser(description = "dendsj test")
     parser.add_argument(
@@ -435,6 +498,8 @@ def main():
         rate_plot_test()
     elif args.mode == "gradient":
         gradient_test()
+    elif args.mode == "conv":
+        conv_test()
     elif args.mode == "all":
         dend_compartment_test()
         wiring_test()
@@ -444,6 +509,7 @@ def main():
         stochastic_test()
         rate_plot_test()
         gradient_test()
+        conv_test()
     else:
         raise ValueError(f"Invalid argument: mode = {args.mode}")
 
