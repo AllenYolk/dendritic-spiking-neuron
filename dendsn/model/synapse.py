@@ -1,5 +1,8 @@
+from typing import Union
+
 import torch
 import torch.nn as nn
+import torch.nn.common_types as ttypes
 
 from dendsn.model import synapse_conn, synapse_filter
 
@@ -50,6 +53,33 @@ class BaseSynapse(nn.Module):
             )
 
 
+class LinearIdenditySynapse(BaseSynapse):
+
+    def __init__(
+        self, in_features: int, out_features: int, bias: bool = False,
+        device = None, dtype = None, step_mode: str = "s"
+    ):
+        """
+        A synapse model whose connection model is a LinearSynapseConn
+        and the synaptic filter is an IdentitySynapseFilter
+
+        Args:
+            in_features (int): the argument for MaskedLinearSynapseConn.
+            out_features (int): the argument for MaskedLinearSynapseConn.
+            bias (bool, optional): the argument for MaskedLinearSynapseConn. 
+            device (_type_, optional): Defaults to None.
+            dtype (_type_, optional): Defaults to None.
+            step_mode (str, optional): Defaults to "s".
+        """
+        super().__init__(
+            conn = synapse_conn.LinearSynapseConn(
+                in_features, out_features, bias, device, dtype
+            ),
+            filter = synapse_filter.IdentitySynapseFilter(),
+            step_mode = step_mode
+        )
+
+
 class MaskedLinearIdenditySynapse(BaseSynapse):
 
     def __init__(
@@ -58,8 +88,8 @@ class MaskedLinearIdenditySynapse(BaseSynapse):
         step_mode: str = "s"
     ):
         """
-        A synapse model whose connection model is a MaskedLinearSynapseConn.
-        The synaptic filter can be arbitrarily specified.
+        A synapse model whose connection model is a MaskedLinearSynapseConn
+        and synaptic filter is an IdentitySynapseFilter
 
         Args:
             in_features (int): the argument for MaskedLinearSynapseConn.
@@ -75,6 +105,26 @@ class MaskedLinearIdenditySynapse(BaseSynapse):
         super().__init__(
             conn = synapse_conn.MaskedLinearSynapseConn(
                 in_features, out_features, bias, init_sparsity, device, dtype
+            ),
+            filter = synapse_filter.IdentitySynapseFilter(),
+            step_mode = step_mode
+        )
+
+
+class Conv2dIdentitySynapse(BaseSynapse):
+
+    def __init__(
+        self, in_channels: int, out_channels: int,
+        kernel_size: ttypes._size_2_t, stride: ttypes._size_2_t = 1,
+        padding: Union[ttypes._size_2_t, str] = 0,
+        dilation: ttypes._size_2_t = 1, groups: int = 1,
+        bias: bool = False, padding_mode: str = "zeros", 
+        device = None, dtype = None, step_mode: str = "s"
+    ):
+        super().__init__(
+            conn = synapse_conn.Conv2dSynapseConn(
+                in_channels, out_channels, kernel_size, stride, padding, 
+                dilation, groups, bias, padding_mode, device, dtype,
             ),
             filter = synapse_filter.IdentitySynapseFilter(),
             step_mode = step_mode

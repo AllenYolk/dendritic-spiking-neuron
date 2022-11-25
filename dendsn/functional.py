@@ -67,7 +67,7 @@ def unfold_forward_fold(
     stateless_module: Union[Sequence, nn.Module, nn.Sequential, Callable]
 ) -> torch.Tensor:
     """
-    Merge the time and batch dimensions of `x_seq` into one dimension ('flod'),
+    Merge the time and batch dimensions of `x_seq` into one dimension ('fold'),
     conduct the computations defined in `stateless_module`,
     and resume the time and batch dimensions of the outcome ('unfold').
 

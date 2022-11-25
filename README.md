@@ -11,10 +11,9 @@ The model in `dendsn` is based on:
 
 ### Modules in `dendsn`
 
-The basic assumption of the model is:
-> All the dendritic neurons in the same layer have exactly the same morphology!
+The basic assumption of all the implemented models is: ==all the dendritic neurons in the same layer have exactly the same morphology!==
 
-Dendritic neurons are built in a bottom-up manner in this package:
+Dendritic neurons are built in a bottom-up manner in this package, and each component is implemented in a separate python script:
 * **dendritic neuron**: `model/neuron.py` 
     * dendrite: `model/dendrite.py`
         * dendritic compartments: `model/dend_compartment.py`

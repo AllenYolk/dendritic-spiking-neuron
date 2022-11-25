@@ -1,11 +1,15 @@
 import abc
 import math
+from typing import Union
 
 import torch
 import torch.nn as nn
 import torch.nn.parameter as P
 import torch.nn.functional as F
 import torch.nn.init as init
+import torch.nn.common_types as ttypes
+
+from dendsn import functional
 
 
 class BaseSynapseConn(nn.Module, abc.ABC):
@@ -32,6 +36,45 @@ class BaseSynapseConn(nn.Module, abc.ABC):
                 f"BaseSynapseConn.step_mode should be 'm' or 's', "
                 f"but get {self.step_mode} instead."
             )
+
+
+class LinearSynapseConn(nn.Linear, BaseSynapseConn):
+
+    def __init__(
+        self, in_features: int, out_features: int, bias: bool = False,
+        device = None, dtype = None, step_mode: str = "s"
+    ):
+        """
+        A wrapper for nn.Linear (fully connected).
+
+        Args:
+            in_features (int)
+            out_features (int)
+            bias (bool, optional): Defaults to False.
+            device (_type_, optional): Defaults to None.
+            dtype (_type_, optional): Defaults to None.
+            step_mode (str, optional): Defaults to "s".
+        """
+        # print(self.__class__.__mro__)
+        super().__init__(in_features, out_features, bias, device, dtype)
+        self.step_mode = step_mode
+
+    def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
+        return super().forwrad(x, self.weight, self.bias)
+
+    def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
+        return super().forward(x_seq, self.weight, self.bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.step_mode == "s":
+            return self.single_step_forward(x)
+        elif self.step_mode == "m":
+            return self.multi_step_forward(x)
+        else:
+            raise ValueError(
+                f"LinearSynapseConn.step_mode should be 'm' or 's', "
+                f"but get {self.step_mode} instead."
+            ) 
 
 
 class MaskedLinearSynapseConn(BaseSynapseConn):
@@ -92,3 +135,39 @@ class MaskedLinearSynapseConn(BaseSynapseConn):
 
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         return F.linear(x_seq, self.weight * self.weight_mask, self.bias)
+
+
+class Conv2dSynapseConn(nn.Conv2d, BaseSynapseConn):
+
+    def __init__(
+        self, in_channels: int, out_channels: int,
+        kernel_size: ttypes._size_2_t, stride: ttypes._size_2_t = 1,
+        padding: Union[ttypes._size_2_t, str] = 0,
+        dilation: ttypes._size_2_t = 1, groups: int = 1,
+        bias: bool = False, padding_mode: str = "zeros", 
+        device = None, dtype = None, step_mode: str = "s"
+    ):
+        # print(self.__class__.__mro__)
+        super().__init__(
+            in_channels, out_channels, kernel_size, stride, padding, dilation,
+            groups, bias, padding_mode, device, dtype
+        )
+        # print(self.step_mode)
+        self.step_mode = step_mode
+
+    def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
+        return functional.unfold_forward_fold(x_seq, super().forward)
+
+    def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
+        return super().forward(x)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.step_mode == "s":
+            return self.single_step_forward(x)
+        elif self.step_mode == "m":
+            return self.multi_step_forward(x)
+        else:
+            raise ValueError(
+                f"LinearSynapseConn.step_mode should be 'm' or 's', "
+                f"but get {self.step_mode} instead."
+            ) 

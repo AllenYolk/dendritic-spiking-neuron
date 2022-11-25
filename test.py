@@ -211,10 +211,11 @@ def neuron_test(
 
 
 def synapse_test(
-    T: int = 5, B: int = 2, in_features = 20, out_features = 12
+    T: int = 5, B: int = 2, in_features = 20, out_features = 12,
+    in_channels = 4, out_channels = 1, kernel_size = 2
 ):
     print("====="*20)
-    print("synapse model test:")
+    print("synapse model test - MaskedLinear:")
     x_seq = torch.randn(size = [T, B, in_features])
     syn = synapse.MaskedLinearIdenditySynapse(
         in_features, out_features, bias = True, step_mode = "m"
@@ -223,6 +224,22 @@ def synapse_test(
     syn.step_mode = "s"
     syn.reset()
     print(f"mask = {syn.conn.weight_mask.data}")
+    for t in range(T):
+        y = syn(x_seq[t])
+        print(f"t = {t}:")
+        print(f"    x = {x_seq[t, 0]}")
+        print(f"    y1 = {y_seq[t, 0]} [multi-step]")
+        print(f"    y2 = {y[0]} [single-step]")
+
+    print("====="*20)
+    print("synapse model test - Conv:")
+    x_seq = torch.randn(size = [T, B, in_channels, 4, 4])
+    syn = synapse.Conv2dIdentitySynapse(
+        in_channels, out_channels, kernel_size, step_mode = "m"
+    )
+    y_seq = syn(x_seq)
+    syn.step_mode = "s"
+    syn.reset()
     for t in range(T):
         y = syn(x_seq[t])
         print(f"t = {t}:")
