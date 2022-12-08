@@ -8,7 +8,6 @@ import abc
 from typing import Union, List, Optional
 
 import torch
-import torch.nn as nn
 import numpy as np
 from spikingjelly.activation_based import neuron as sj_neuron
 from spikingjelly.activation_based import base

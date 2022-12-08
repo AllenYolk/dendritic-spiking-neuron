@@ -9,7 +9,6 @@ from typing import Union, Optional
 import abc
 
 import torch
-import torch.nn as nn
 from spikingjelly.activation_based import base
 
 from dendsn import functional

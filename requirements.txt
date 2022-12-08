@@ -1,0 +1,5 @@
+spikingjelly>=0.0.0.0.13
+torch>=1.10.0
+matplotlib
+numpy
+tqdm

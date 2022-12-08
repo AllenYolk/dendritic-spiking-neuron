@@ -1,7 +1,6 @@
 import abc
 
 import torch
-import torch.nn as nn
 from spikingjelly.activation_based import base
 from spikingjelly.activation_based import neuron
 
