@@ -11,7 +11,8 @@ Draw inspiration from the nonlinear nature of biological dendritic neurons!
 
 ## Installation
 
-Install from the source code in this Github repository:
+### Install from source code
+* From [Github](https://github.com/AllenYolk/dendritic-spiking-neuron)
 ```shell
 git clone https://github.com/AllenYolk/dendritic-spiking-neuron.git
 cd dendritic-spiking-neuron
@@ -33,4 +34,4 @@ Dendritic neurons are built in a bottom-up manner in this package, and each comp
     * encapsulated jit operations: `functional.py`: 
     * stochastic spiking autograd functions: `stochastic_firing.py`
 
-The basic assumption is: **all the dendritic neurons in the same layer share exactly the same morphology**.
+The basic assumption is: **all the dendritic neurons in the same layer share exactly the same morphology**!
