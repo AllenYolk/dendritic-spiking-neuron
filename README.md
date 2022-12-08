@@ -6,7 +6,8 @@ A new dendritic computing package `dendsn` based on [pytorch](https://github.com
 Draw inspiration from the nonlinear nature of biological dendritic neurons!
 
 **Table of Contents:**
-[toc]
+* [Installation](#installation)
+* [Modules in `dendsn`](#modules-in-dendsn)
 
 ## Installation
 
