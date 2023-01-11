@@ -2,7 +2,6 @@ import argparse
 
 import torch
 import torch.nn as nn
-import torch.nn.init as init
 import torch.optim as optim
 from spikingjelly.activation_based import neuron as sj_neuron
 from spikingjelly.activation_based import functional

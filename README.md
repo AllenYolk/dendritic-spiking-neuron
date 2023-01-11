@@ -12,7 +12,7 @@ Draw inspiration from the nonlinear nature of biological dendritic neurons!
 ## Installation
 
 ### Install from source code
-* From [Github](https://github.com/AllenYolk/dendritic-spiking-neuron)
+From [Github](https://github.com/AllenYolk/dendritic-spiking-neuron)
 ```shell
 git clone https://github.com/AllenYolk/dendritic-spiking-neuron.git
 cd dendritic-spiking-neuron
