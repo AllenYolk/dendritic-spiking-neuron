@@ -1,8 +1,10 @@
-"""
-This module defines the voltage dynamics of the dendritic compartments.
+"""The voltage dynamics of dendritic compartments.
 
-Dendritic compartments are treated independently. The relationship (wiring 
-or couping) among a set of compartments is not considered here.
+This package contains a series of classes depicting different types of dendritic
+compartments so that we can compute the dendritic voltage dynamics step by step,
+given the input to all the compartments. When computing the dendritic voltage 
+dynamics for a single time step, the compartments are treated independently. 
+The relationship (wiring) among a set of compartments is not considered here.
 """
 
 import abc
@@ -12,18 +14,29 @@ from spikingjelly.activation_based import base
 
 
 class BaseDendCompartment(base.MemoryModule, abc.ABC):
+    """Base class for all dendritic compartments.
+
+    Attributes:
+        v (Union[float, torch.Tensor]): voltage of the dendritic compartment(s)
+            at the current time step
+        step_mode (str): "s" for single-step mode, and "m" for multi-step mode
+    """
 
     def __init__(self, v_init: float = 0., step_mode: str = "s"):
+        """The constructor of BaseDendCompartment.
+
+        Args:
+            v_init (float, optional): initial voltage (at time step 0). 
+                Defaults to 0..
+            step_mode (str, optional): "s" for single-step mode, and "m" for
+                multi-step mode. Defaults to "s".
+        """
         super().__init__()
         self.register_memory("v", v_init)
         self.step_mode = step_mode
 
     def v_float2tensor(self, x: torch.Tensor):
-        """
-        If self.v is a float, turn it into a tensor with the same shape of x
-
-        Args:
-            x (torch.Tensor)
+        """ If self.v is a float, turn it into a tensor with x's shape
         """
         if isinstance(self.v, float):
             v_init = self.v
@@ -54,15 +67,26 @@ class BaseDendCompartment(base.MemoryModule, abc.ABC):
 
 
 class PassiveDendCompartment(BaseDendCompartment):
+    """Passive dendritic compartments.
+
+    A passive dendritic compartment is just a leaky integrator without a firing
+    mechanism.
+
+    Attributes:
+        v (Union[float, torch.Tensor]): voltage of the dendritic compartment(s)
+            at the current time step
+        step_mode (str): "s" for single-step mode, and "m" for multi-step mode
+        tau(float): the time constant
+        decay_input (bool, optional): whether the input to the compartments
+            should be divided by tau.
+        v_rest (float, optional): resting potential.
+    """
 
     def __init__(
         self, tau: float = 2, decay_input: bool = True, v_rest: float = 0.,
         step_mode: str = "s"
     ):
-        """
-        The dynamics of passive dendritic compartments. 
-        A passive dendritic compartment is just a leaky integrator without a
-        firing mechanism.
+        """The constructor of PassiveDendCompartment
 
         Args:
             tau (float, optional): the time constant. Defaults to 2.
