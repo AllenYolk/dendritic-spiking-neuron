@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 import argparse
 
 import torch
@@ -65,7 +67,7 @@ def dendrite_test(T: int = 5, B: int = 2, N: int = 6, k: int = 3):
         step_mode = "m"
     )
     w3 = wiring.SegregatedDendWiring(n_compartment = N)
-    w3.adjacency_matrix = torch.eye(n = N, dtype = torch.int32)
+    w3._adjacency_matrix = torch.eye(n = N, dtype = torch.int32)
     dend3 = dendrite.VDiffDend(
         compartment = dend_compartment.PassiveDendCompartment(),
         wiring = w3, step_mode = "m"
