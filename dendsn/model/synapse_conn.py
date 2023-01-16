@@ -1,3 +1,11 @@
+"""Synaptic connection models.
+
+This module defines several wrappers for nn.Linear, nn.Conv2d and other commonly
+used weight layers so as to:
+1. support both single-step and multi-step mode.
+2. enable 0-1 masks to mimic sparse synaptic connections.
+"""
+
 import abc
 import math
 from typing import Union
@@ -13,8 +21,24 @@ from dendsn import functional
 
 
 class BaseSynapseConn(nn.Module, abc.ABC):
+    """Base class for all synaptic connections.
+
+    A synaptic connection module is a wrapper for weight layers in Pytorch. 
+    Subclasses of BaseSynapseConn must support single-step and multi-step mode
+    by implementing singe_step_forward() and multi_step_forward(), and
+    optionally use a 0-1 mask to mimic sparse synaptic connections.
+
+    Attributes:
+        step_mode (str): "s" for single-step mode, and "m" for multi-step mode.
+    """
 
     def __init__(self, step_mode: str = "s"):
+        """The constructor of BaseSynapseConn.
+
+        Args:
+            step_mode (str, optional): "s" for single-step mode, and "m" for 
+                multi-step mode. Defaults to "s".
+        """
         super().__init__()
         self.step_mode = step_mode
 
@@ -24,7 +48,12 @@ class BaseSynapseConn(nn.Module, abc.ABC):
 
     @abc.abstractmethod
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
-        pass
+        T = x_seq.shape[0]
+        y_seq = []
+        for t in range(T):
+            y = self.single_step_forward(x_seq[t])
+            y_seq.append(y)
+        return torch.stack(y_seq)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.step_mode == "s":
@@ -39,13 +68,17 @@ class BaseSynapseConn(nn.Module, abc.ABC):
 
 
 class LinearSynapseConn(nn.Linear, BaseSynapseConn):
+    """Wrapped nn.Linear that supports single-step and multi-step mode.
+
+    Attributes:
+        See base class: nn.Linear, BaseSynapseConn.
+    """
 
     def __init__(
         self, in_features: int, out_features: int, bias: bool = False,
         device = None, dtype = None, step_mode: str = "s"
     ):
-        """
-        A wrapper for nn.Linear (fully connected).
+        """The constructor of LinearSynapseConn.
 
         Args:
             in_features (int)
@@ -53,7 +86,8 @@ class LinearSynapseConn(nn.Linear, BaseSynapseConn):
             bias (bool, optional): Defaults to False.
             device (_type_, optional): Defaults to None.
             dtype (_type_, optional): Defaults to None.
-            step_mode (str, optional): Defaults to "s".
+            step_mode (str, optional): "s" for single-step mode, and "m" for
+                multi-step mode. Defaults to "s".
         """
         # print(self.__class__.__mro__)
         super().__init__(in_features, out_features, bias, device, dtype)
@@ -65,27 +99,29 @@ class LinearSynapseConn(nn.Linear, BaseSynapseConn):
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         return super().forward(x_seq, self.weight, self.bias)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.step_mode == "s":
-            return self.single_step_forward(x)
-        elif self.step_mode == "m":
-            return self.multi_step_forward(x)
-        else:
-            raise ValueError(
-                f"LinearSynapseConn.step_mode should be 'm' or 's', "
-                f"but get {self.step_mode} instead."
-            ) 
-
 
 class MaskedLinearSynapseConn(BaseSynapseConn):
+    """Reimplemented nn.Linear with a sparsity mask supporting both step mode.
+
+    The source code of torch.nn.Linear is modified to incorporate a 0-1 sparsity
+    mask and support both single-step and multi-step mode. The sparsity mask is
+    randomly initialized given a sparsity value.
+
+    Attributes:
+        See nn.Linear and base class: BaseSynapseConn.
+        weight_mask (torch.Tensor): the sparsity mask of synaptic connection,
+            whose shape is [out_features, in_features].
+        init_sparsity (torch.Tensor): weight_mask's initial coefficient of 
+            sparsity, used to initialize weight_mask. Higher value indicates 
+            higher sparsity.
+    """
 
     def __init__(
         self, in_features: int, out_features: int, bias: bool = False,
         init_sparsity: float = 0.75, device = None, dtype = None,
         step_mode: str = "s"
     ):
-        """
-        nn.Linear with a 0-1 sparsity mask (to simulate synaptic connections).
+        """The constructor of MaskedLinearSynapseConn.
 
         Args:
             in_features (int)
@@ -93,9 +129,10 @@ class MaskedLinearSynapseConn(BaseSynapseConn):
             bias (bool, optional): Defaults to False.
             init_sparsity (float, optional): the sparsity of the 0-1 mask when 
                 it is initialized [higher -> sparser]. Defaults to 0.75 .
-            device (_type_, optional): Defaults to None.
-            dtype (_type_, optional): Defaults to None.
-            step_mode (str, optional): Defaults to "s".
+            device (optional): Defaults to None.
+            dtype (optional): Defaults to None.
+            step_mode (str, optional): "s" for single-step mode, and "m" for
+                multi-step mode. Defaults to "s".
         """
         super().__init__(step_mode = step_mode)
         factory_kwargs = {"device": device, "dtype": dtype}
@@ -121,6 +158,8 @@ class MaskedLinearSynapseConn(BaseSynapseConn):
         self.reset_parameters()
 
     def reset_parameters(self):
+        """Reset weight, bias and weight_mask.
+        """
         # the use of torch.nn.init module
         init.kaiming_uniform_(self.weight, a=math.sqrt(5))
         if self.bias is not None:
@@ -138,6 +177,11 @@ class MaskedLinearSynapseConn(BaseSynapseConn):
 
 
 class Conv2dSynapseConn(nn.Conv2d, BaseSynapseConn):
+    """Wrapped nn.Conv2d that supports single-step and multi-step mode.
+
+    Attributes:
+        See base class: nn.Conv2d, BaseSynapseConn.
+    """
 
     def __init__(
         self, in_channels: int, out_channels: int,
@@ -147,6 +191,22 @@ class Conv2dSynapseConn(nn.Conv2d, BaseSynapseConn):
         bias: bool = False, padding_mode: str = "zeros", 
         device = None, dtype = None, step_mode: str = "s"
     ):
+        """The constructor of Conv2dSynapseConn.
+
+        Args:
+            in_channels (int)
+            out_channels (int)
+            kernel_size (ttypes._size_2_t)
+            stride (ttypes._size_2_t, optional): Defaults to 1.
+            padding (Union[ttypes._size_2_t, str], optional): Defaults to 0.
+            dilation (ttypes._size_2_t, optional): Defaults to 1.
+            groups (int, optional): Defaults to 1.
+            bias (bool, optional): Defaults to False.
+            padding_mode (str, optional): Defaults to "zeros".
+            device (_type_, optional): Defaults to None.
+            dtype (_type_, optional): Defaults to None.
+            step_mode (str, optional): Defaults to "s".
+        """
         # print(self.__class__.__mro__)
         super().__init__(
             in_channels, out_channels, kernel_size, stride, padding, dilation,
@@ -160,14 +220,3 @@ class Conv2dSynapseConn(nn.Conv2d, BaseSynapseConn):
 
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
         return super().forward(x)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.step_mode == "s":
-            return self.single_step_forward(x)
-        elif self.step_mode == "m":
-            return self.multi_step_forward(x)
-        else:
-            raise ValueError(
-                f"LinearSynapseConn.step_mode should be 'm' or 's', "
-                f"but get {self.step_mode} instead."
-            ) 

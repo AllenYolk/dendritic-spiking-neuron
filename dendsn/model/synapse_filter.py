@@ -12,8 +12,24 @@ from spikingjelly.activation_based import neuron
 
 
 class BaseSynapseFilter(base.MemoryModule, abc.ABC):
+    """Base class for all synaptic filter models.
+
+    A synaptic filter often follows a synaptic connection layer, filtering the 
+    output of synaptic connection along the time dimension. Typically, it's a
+    module with state. To define a subclass, just implement reset() and
+    single_step_forward() methods.
+
+    Attributes:
+        step_mode (str): "s" for single-step mode, and "m" for multi-step mode.
+    """
 
     def __init__(self, step_mode: str = "s"):
+        """The constructor of BaseSynapseConn.
+
+        Args:
+            step_mode (str, optional): "s" for single-step mode, and "m" for 
+                multi-step mode. Defaults to "s".
+        """
         super().__init__()
         self.step_mode = step_mode
 
@@ -47,13 +63,18 @@ class BaseSynapseFilter(base.MemoryModule, abc.ABC):
 
 
 class IdentitySynapseFilter(BaseSynapseFilter):
+    """Synaptic filter which conducts identity mapping (thus do nothing).
+
+    Attributes:
+        See base class: BaseSynapseFilter.
+    """
 
     def __init__(self, step_mode: str = "s"):
-        """
-        This synaptic filter conducts identity mapping (thus do nothing).
+        """The constructor of IdentitySynapseFilter.
 
         Args:
-            step_mode (str, optional): Defaults to "s".
+            step_mode (str, optional): "s" for single-step mode, and "m" for
+                multi-step mode. Defaults to "s".
         """
         super().__init__(step_mode = step_mode)
 
@@ -68,8 +89,32 @@ class IdentitySynapseFilter(BaseSynapseFilter):
 
 
 class LISynapseFilter(BaseSynapseFilter):
+    """Synaptic filter that acts as a leaky integrator (doesn't decay input).
+
+    Given the input x[t] (which is the output of synaptic connection module) at
+    the current time step and state s[t-1] at the previous time step, the 
+    current state s[t] and output y[t] is defined as
+        s[t] = (1 - 1/tau) * s[t-1] + x[t]
+        y[t] = s[t]
+    To implement a leaky integrator, we can use a LIF neuron with infinite
+    firing threshold (so that it'll never fire).
+
+    Args:
+        tau (float): the time constant.
+        leaky_integrator (LIFNode): the leak integrator computing the state
+            update. A LIF neuron with infinite firing threshold (thus it will
+            never emit a spike).
+        step_mode (str): see base class BaseSynapseFilter.
+    """
 
     def __init__(self, tau: float, step_mode: str = "s"):
+        """The constructor of LISynapseFilter.
+
+        Args:
+            tau (float): the time constant.
+            step_mode (str, optional): "s" for single-step mode, and "m" for
+                multi-step mode. Defaults to "s".
+        """
         super().__init__(step_mode)
         self.tau = tau
         self.leaky_integrator = neuron.LIFNode(

@@ -18,8 +18,8 @@ class BaseDendCompartment(base.MemoryModule, abc.ABC):
 
     Attributes:
         v (Union[float, torch.Tensor]): voltage of the dendritic compartment(s)
-            at the current time step
-        step_mode (str): "s" for single-step mode, and "m" for multi-step mode
+            at the current time step.
+        step_mode (str): "s" for single-step mode, and "m" for multi-step mode.
     """
 
     def __init__(self, v_init: float = 0., step_mode: str = "s"):
@@ -36,7 +36,7 @@ class BaseDendCompartment(base.MemoryModule, abc.ABC):
         self.step_mode = step_mode
 
     def v_float2tensor(self, x: torch.Tensor):
-        """ If self.v is a float, turn it into a tensor with x's shape
+        """If self.v is a float, turn it into a tensor with x's shape.
         """
         if isinstance(self.v, float):
             v_init = self.v
@@ -93,7 +93,8 @@ class PassiveDendCompartment(BaseDendCompartment):
             decay_input (bool, optional): whether the input to the compartments
                 should be divided by tau. Defaults to True.
             v_rest (float, optional): resting potential. Defaults to 0..
-            step_mode (str, optional): Defaults to "s".
+            step_mode (str, optional): "s" for single-step mode, and "m" for
+                multi-step mode. Defaults to "s".
         """
         super().__init__(v_init = v_rest, step_mode = step_mode)
         self.tau = tau

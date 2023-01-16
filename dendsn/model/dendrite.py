@@ -20,12 +20,32 @@ from dendsn.model import wiring as wr
 
 
 class BaseDend(base.MemoryModule, abc.ABC):
+    """Base class for all dendritic models.
+
+    The morphology and dynamics of dendrite are both incorporated in this class.
+    To define a subclass, just implement get_internal_input() method.
+
+    Attributes:
+        compartment (BaseDendCompartment): dendritic compartment model
+            describing the voltage dynamics.
+        wiring (BaseWiring): the wiring diagram of dendritic compartments.
+        step_mode (str): "s" for single-step mode, and "m" for multi-step mode.
+    """
 
     def __init__(
         self, compartment: dend_compartment.BaseDendCompartment,
         wiring: wr.BaseWiring, 
         step_mode: str = "s"
     ):
+        """The constructor of BaseDend.
+
+        Args:
+            compartment (BaseDendCompartment): dendritic compartment model
+                describing the voltage dynamics
+            wiring (BaseWiring): the wiring diagram of dendritic compartments
+            step_mode (str, optional): "s" for single-step mode, and "m" for 
+                multi-step mode. Defaults to "s".
+        """
         super().__init__()
         self.compartment = compartment
         self.wiring = wiring
@@ -122,28 +142,37 @@ class BaseDend(base.MemoryModule, abc.ABC):
 
 
 class SegregatedDend(BaseDend):
+    """Dendrite with segregated wiring diagram.
+
+    The combination of SegregatedDendWiring with arbitrary dendritic compartment
+    model. In this case. there's no need to compute internal input to the
+    compartments, since the wiring diagram is empty. It's also unnecessary to
+    call extend_external_input() or get_output(), since
+
+    Attributes:
+        See base class: BaseDend.
+    """
 
     def __init__(
         self, compartment: dend_compartment.BaseDendCompartment,
         wiring: wr.SegregatedDendWiring,
         step_mode: str = "s"
     ):
-        """
-        A dendrite model (for a single neuron )with segregated wiring diagram.
-        Since wiring is an instance of SegregatedDendWiring
-        (n_compartment = n_input = n_output, empty adjacency matrix),
-        the computation can be much simpler than that defined in BaseDend.
+        """The constructor of SegregatedDend.
 
         Args:
-            compartment (dend_compartment.BaseDendCompartment)
-            wiring (wiring.SegregatedDendWiring)
-            step_mode (str, optional): Defaults to "s".
+            compartment (BaseDendCompartment): dendritic compartment model
+                describing the voltage dynamics.
+            wiring (SegregatedDendWiring): the wiring diagram of dendritic 
+                compartments.
+            step_mode (str, optional): "s" for single-step mode, and "m" for 
+                multi-step mode. Defaults to "s".
 
         Raises:
             ValueError: when `wiring` is not 
                 an instance of SegregatedDendWiring.
         """
-        if not isinstance(self.wiring, wr.SegregatedDendWiring):
+        if not isinstance(wiring, wr.SegregatedDendWiring):
             raise ValueError(
                 f"The dendritic wiring should be an instance of"
                 f"wiring.SegregatedDendWiring, but get {self.wiring} instead."
@@ -163,6 +192,21 @@ class SegregatedDend(BaseDend):
 
 
 class VDiffDend(BaseDend):
+    """Dendritic model driven by voltage difference.
+
+    The internal input in this model is determined by the voltage difference 
+    between adjacent dendritic compartments. Mathematically, the internal input
+    fed into compartment j is
+        I^{int}_{j} = \sum_i theta_{ij}(v_i - v_j)
+    where i can be all j's parents, and theta_{ij} is the coupling strength.
+
+    Attributes:
+        coupling_strength (float or torch.Tensor): the coupling strength theta
+            between dendritic compartments. If it's a torch.Tensor, its shape 
+            should be [wiring.n_compartment, wiring.n_compartment].
+            If coupling_strength is a float, it is broadcasted into a Tensor.
+        compartment, wiring, step_mode: see base class BaseDend.
+    """
 
     def __init__(
         self, compartment: dend_compartment.BaseDendCompartment,
@@ -170,21 +214,20 @@ class VDiffDend(BaseDend):
         coupling_strength: Union[float, torch.Tensor] = 1.,
         step_mode: str = "s" 
     ):
-        """
-        A dendrite model (for a single neuron) whose internal information flow 
-        is determined by the difference in compartmental voltage.
+        """The constructor of VDiffDend
 
         Args:
-            compartment (dend_compartment.BaseDendCompartment):
-                the dendritic compartment dynamics model
-            wiring (wr.BaseWiring): the dendritic wiring diagram
+            compartment (BaseDendCompartment): dendritic compartment model
+                describing the voltage dynamics.
+            wiring (wr.BaseWiring): the wiring diagram of dendritic compartments
             coupling_strength (Union[float, torch.Tensor], optional): 
                 the coupling strength corresponding to the connections 
                 in `wiring`. If it's a torch.Tensor, its shape should be 
                 [wiring.n_compartment, wiring.n_compartment]. 
                 If it's a float, the same coupling strength is applied to all 
                 the connections. Defaults to 1. .
-            step_mode (str, optional): Defaults to "s".
+            step_mode (str, optional): "s" for single-step mode, and "m" for 
+                multi-step mode. Defaults to "s".
         """
         super().__init__(compartment, wiring, step_mode)
         self.coupling_strength = coupling_strength

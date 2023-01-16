@@ -1,3 +1,9 @@
+"""Synaptic Models.
+
+A synaptic model consists of a synaptic connection layer and a synaptic filter
+model.
+"""
+
 from typing import Union
 
 import torch
@@ -8,20 +14,30 @@ from dendsn.model import synapse_conn, synapse_filter
 
 
 class BaseSynapse(nn.Module):
+    """Base class for all synaptic models.
+
+    A generic synapse model consists of a synaptic connection model and 
+    a filter. The design pattern here is: Template Method, Factory Method and 
+    Abstract Factory.
+
+    Args:
+        conn (BaseSynapseConn): the synaptic connection module.
+        filter (BaseSynapseFilter): the synaptic filter model.
+        step_mode (str): "s" for single-step mode, and "m" for multi-step mode.
+    """
 
     def __init__(
         self, conn: synapse_conn.BaseSynapseConn, 
         filter: synapse_filter.BaseSynapseFilter,
         step_mode: str = "s",
     ):
-        """
-        A generic synapse model consists of a synaptic connection model and 
-        a filter.
+        """The constructor of BaseSynapse.
 
         Args:
-            conn (synapse_conn.BaseSynapseConn)
-            filter (synapse_filter.BaseSynapseFilter)
-            step_mode (str, optional): Defaults to "s".
+            conn (BaseSynapseConn): the synaptic connection module.
+            filter (BaseSynapseFilter): the synaptic filter model.
+            step_mode (str, optional): "s" for single-step mode, and "m" for
+                multi-step mode. Defaults to "s".
         """
         super().__init__()
         self.conn = conn
@@ -54,22 +70,28 @@ class BaseSynapse(nn.Module):
 
 
 class LinearIdenditySynapse(BaseSynapse):
+    """Synaptic model combining LinearSynapseConn with IdentitySynapseFilter.
+
+    Attributes:
+        See base class BaseSynapse.
+        Also, see LinearSynapseConn nd IdentitySynapseFilter.
+    """
 
     def __init__(
         self, in_features: int, out_features: int, bias: bool = False,
         device = None, dtype = None, step_mode: str = "s"
     ):
-        """
-        A synapse model whose connection model is a LinearSynapseConn
-        and the synaptic filter is an IdentitySynapseFilter
+        """The constructor of LinearIdentitySynapse.
 
         Args:
-            in_features (int): the argument for MaskedLinearSynapseConn.
-            out_features (int): the argument for MaskedLinearSynapseConn.
-            bias (bool, optional): the argument for MaskedLinearSynapseConn. 
-            device (_type_, optional): Defaults to None.
-            dtype (_type_, optional): Defaults to None.
-            step_mode (str, optional): Defaults to "s".
+            in_features (int): the argument for LinearSynapseConn.
+            out_features (int): the argument for LinearSynapseConn.
+            bias (bool, optional): the argument for LinearSynapseConn. Defaults
+                to None.
+            device (str, optional): Defaults to None.
+            dtype (str, optional): Defaults to None.
+            step_mode (str, optional): "s" for single-step mode, and "m" for 
+                multi-step mode. Defaults to "s".
         """
         super().__init__(
             conn = synapse_conn.LinearSynapseConn(
@@ -81,26 +103,32 @@ class LinearIdenditySynapse(BaseSynapse):
 
 
 class MaskedLinearIdenditySynapse(BaseSynapse):
+    """Synapse combining MaskedLinearSynapseConn and IdentitySynapseFilter.
+
+    Attributes:
+        See base class: BaseSynapse.
+        Also, see MaskedLinearSynapseConn and IdentitySynapseFilter.
+    """
 
     def __init__(
         self, in_features: int, out_features: int, bias: bool = False,
         init_sparsity: float = 0.75, device = None, dtype = None,
         step_mode: str = "s"
     ):
-        """
-        A synapse model whose connection model is a MaskedLinearSynapseConn
-        and synaptic filter is an IdentitySynapseFilter
+        """The constructor of MaskedLinearIdentitySynapse.
 
         Args:
             in_features (int): the argument for MaskedLinearSynapseConn.
             out_features (int): the argument for MaskedLinearSynapseConn.
-            bias (bool, optional): the argument for MaskedLinearSynapseConn. 
-            init_sparsity (float, optional): the argument for MaskedLinearSynapseConn.
-                the sparsity of the 0-1 mask when it is initialized 
-                [higher -> sparser]. Defaults to False. Defaults to 0.75.
-            device (_type_, optional): Defaults to None.
-            dtype (_type_, optional): Defaults to None.
-            step_mode (str, optional): Defaults to "s".
+            bias (bool, optional): the argument for MaskedLinearSynapseConn.
+                Defaults to None.
+            init_sparsity (float, optional): the argument for 
+                MaskedLinearSynapseConn. The sparsity of the 0-1 mask when it is
+                initialized [higher -> sparser]. Defaults to 0.75.
+            device (str, optional): Defaults to None.
+            dtype (str, optional): Defaults to None.
+            step_mode (str, optional): "s" for single-step mode, and "m" for
+                multi-step mode. Defaults to "s".
         """
         super().__init__(
             conn = synapse_conn.MaskedLinearSynapseConn(
@@ -112,6 +140,12 @@ class MaskedLinearIdenditySynapse(BaseSynapse):
 
 
 class Conv2dIdentitySynapse(BaseSynapse):
+    """Synapse combining Conv2dSynapseConn and IdentitySynapseFilter.
+
+    Attributes:
+        See base class: BaseSynapse.
+        Also, see Conv2dSynapseConn and IdentitySynapseFilter.
+    """
 
     def __init__(
         self, in_channels: int, out_channels: int,
@@ -121,6 +155,29 @@ class Conv2dIdentitySynapse(BaseSynapse):
         bias: bool = False, padding_mode: str = "zeros", 
         device = None, dtype = None, step_mode: str = "s"
     ):
+        """The constructor of Conv2dIdentitySynapse.
+
+        Args:
+            in_channels (int): the argument for Conv2dSynapseConn.
+            out_channels (int): the argument for Conv2dSynapseConn.
+            kernel_size (ttypes._size_2_t): the argument for Conv2dSynapseConn.
+            stride (ttypes._size_2_t, optional): the argument for 
+                Conv2dSynapseConn. Defaults to 1.
+            padding (Union[ttypes._size_2_t, str], optional): the argument for 
+                Conv2dSynapseConn.. Defaults to 0.
+            dilation (ttypes._size_2_t, optional): the argument for
+                Conv2dSynapseConn. Defaults to 1.
+            groups (int, optional): the argument for Conv2dSynapseConn. 
+                Defaults to 1.
+            bias (bool, optional): the argument for Conv2dSynapseConn. Defaults 
+                to False.
+            padding_mode (str, optional): the argument for Conv2dSynapseConn.
+                Defaults to "zeros".
+            device (_type_, optional): Defaults to None.
+            dtype (_type_, optional): Defaults to None.
+            step_mode (str, optional): "s" for single-step mode, and "m" for
+                multi-step mode. Defaults to "s".
+        """
         super().__init__(
             conn = synapse_conn.Conv2dSynapseConn(
                 in_channels, out_channels, kernel_size, stride, padding, 

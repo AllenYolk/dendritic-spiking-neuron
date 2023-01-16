@@ -1,3 +1,9 @@
+"""Stochastic firing modules.
+
+A stochastic firing module maps a membrane potential to the probability of
+emitting a spike in a time step (a.k.a. firing rate), and then generates a spike
+(or not) according to the probability. 
+"""
 import abc
 
 import torch
@@ -6,25 +12,54 @@ import matplotlib.pyplot as plt
 
 
 class BaseStochasticFiring(nn.Module, abc.ABC):
+    """Base class for all stochastic firing modules.
+
+    Attributes:
+        spiking (bool): if true, the output of forward() is a spike tensor;
+            otherwise, the output is the firing probability (or firing rate).
+    """
 
     def __init__(self, spiking: bool = True):
+        """The constructor of BaseStochasticFiring.
+
+        To define a subclass, just implement 2 methods: spiking_function() and 
+        rate_function().
+
+        Args:
+            spiking (bool, optional): if true, the output of forward() is a 
+            spike tensor; otherwise, the output is the firing probability (or 
+            firing rate). Defaults to True.
+        """
         super().__init__()
-        self._spiking = spiking
-
-    @property
-    def spiking(self) -> bool:
-        return self._spiking
-
-    @spiking.setter
-    def spiking(self, spk: bool):
-        self._spiking = spk
+        self.spiking = spiking
 
     @abc.abstractmethod
     def spiking_function(self, v: torch.Tensor) -> torch.Tensor:
+        """Map membrane potential to spike according to certain firing rate.
+
+        This function must support gradient back propagation. Typically, a 
+        spiking function is implemented by directly calling a customized 
+        subclass of torch.autograd.Function.
+
+        Args:
+            v (torch.Tensor): membrane potential tensor.
+
+        Returns:
+            torch.Tensor: spike tensor that hasa the same shape as v.
+        """
         pass
 
     @abc.abstractmethod
     def rate_function(self, v: torch.Tensor) -> torch.Tensor:
+        """Map membrane potential to firing probability (or firing rate).
+
+        Args:
+            v (torch.Tensor): membrane potential tensor.
+
+        Returns:
+            torch.Tensor: a tensor of firing probability (firing rate) that has
+                the same shape as v.
+        """
         pass
 
     def forward(self, v: torch.Tensor) -> torch.Tensor:
@@ -34,6 +69,12 @@ class BaseStochasticFiring(nn.Module, abc.ABC):
             return self.rate_function(v)
 
     def plot_firing_rate(self, ax = None):
+        """Plot the firing rate function.
+
+        Args:
+            ax (optional): a matplotlib axes to place the plot on. 
+                Defaults to None.
+        """
         v = torch.arange(-1.25, 1.25, 0.025)
         r = self.rate_function(v)
         if ax is None:
@@ -43,26 +84,30 @@ class BaseStochasticFiring(nn.Module, abc.ABC):
 
 
 @torch.jit.script
-def _stochastic_firing(firing_rate: torch.Tensor):
+def _stochastic_firing(firing_rate: torch.Tensor) -> torch.Tensor:
     comp = torch.rand_like(firing_rate) # [0, 1)
     return (firing_rate >= comp).to(firing_rate)
 
 
 @torch.jit.script
-def tri_param_logistic(x: torch.Tensor, phi: float, beta: float, theta: float):
+def _tri_param_logistic(
+    x: torch.Tensor, phi: float, beta: float, theta: float
+) -> torch.Tensor:
     return phi * ((beta * (x - theta)).sigmoid())
 
 
 @torch.jit.script
-def logistic_stochastic_firing_backward(
+def _logistic_stochastic_firing_backward(
     grad_output: torch.Tensor, x: torch.Tensor,
     phi: float, beta: float, theta: float
-):
+) -> torch.Tensor:
     sg = (beta * (x - theta)).sigmoid()
     return grad_output * phi * (1. - sg) * sg * beta
 
 
 class logistic_stochastic_firing(torch.autograd.Function):
+    """The autograd function for 3-param-logistic stochastic spiking module.
+    """
 
     @staticmethod
     def forward(ctx, x: torch.Tensor, f_max: float, beta: float, theta: float):
@@ -71,36 +116,40 @@ class logistic_stochastic_firing(torch.autograd.Function):
             ctx.f_max = f_max
             ctx.beta = beta
             ctx.theta = theta
-        firing_rate = tri_param_logistic(x, f_max, beta, theta).to(x)
+        firing_rate = _tri_param_logistic(x, f_max, beta, theta).to(x)
         return _stochastic_firing(firing_rate)
 
     @staticmethod
     def backward(ctx, grad_output):
-        return logistic_stochastic_firing_backward(
+        return _logistic_stochastic_firing_backward(
             grad_output, ctx.saved_tensors[0],
             ctx.f_max, ctx.beta, ctx.theta
         ), None, None, None
 
 
 class LogisticStochasticFiring(BaseStochasticFiring):
+    """3-param-logistic stochastic spiking module.
+
+    The firing rate is:
+        freq(v) = 2*f_thres / (1 + exp(-beta * (x - theta)))
+    """
 
     def __init__(
         self, f_thres: float, beta: float, theta: float = 0.,
         spiking: bool = True
     ):
-        """
-        A wrapper for logistic stochastic firing function.
-        The firing rate can be computed as:
-            freq(v) = 2*f_thres / (1 + exp(-beta * (x - theta)))
-        Notice that if the function is used as the spiking function for
+        """The constructor of LogisticStochasticFiring.
+
+        Notice: if the function is used as the spiking function for
         spikingjelly.activation_based.BaseNode (i.e. the `surrogate_function`
         argument), theta should be set to 0 (since threshold has already been 
         subtracted from v in spikingjelly).
 
         Args:
-            f_thres (float): f_thres = 0.5 * f_max
-            beta (float)
-            theta (float, optional): Defaults to 0. .
+            f_thres (float): the firing rate at v=theta. f_thres = 0.5 * f_max
+            beta (float): the steepness of the probability function curve.
+            theta (float, optional): adjust the probability function
+                horizontally. Defaults to 0. .
             spiking (bool, optional): whether returns spikes or firing rates. 
                 Defaults to True (returns spikes).
         """
@@ -115,24 +164,28 @@ class LogisticStochasticFiring(BaseStochasticFiring):
         )
 
     def rate_function(self, v: torch.Tensor) -> torch.Tensor:
-        return tri_param_logistic(v, 2*self.f_thres, self.beta, self.theta)
+        return _tri_param_logistic(v, 2*self.f_thres, self.beta, self.theta)
 
 
 @torch.jit.script
-def tri_param_exp(x: torch.Tensor, phi: float, beta: float, theta: float):
+def _tri_param_exp(
+    x: torch.Tensor, phi: float, beta: float, theta: float
+) -> torch.Tensor:
     return phi * torch.exp(beta * (x - theta))
 
 
 @torch.jit.script
-def exponential_stochastic_firing_backward(
+def _exponential_stochastic_firing_backward(
     grad_output: torch.Tensor, x: torch.Tensor,
     phi: float, beta: float, theta: float
-):
+) -> torch.Tensor:
     expx = torch.exp(beta * (x - theta))
     return grad_output * phi * expx * beta
 
 
 class exponential_stochastic_firing(torch.autograd.Function):
+    """The autograd function for exponential stochastic spiking module.
+    """
 
     @staticmethod
     def forward(
@@ -144,36 +197,40 @@ class exponential_stochastic_firing(torch.autograd.Function):
             ctx.f_thres = f_thres
             ctx.beta = beta
             ctx.theta = theta
-        firing_rate = tri_param_exp(x, f_thres, beta, theta).to(x)
+        firing_rate = _tri_param_exp(x, f_thres, beta, theta).to(x)
         return _stochastic_firing(firing_rate)
 
     @staticmethod
     def backward(ctx, grad_output):
-        return exponential_stochastic_firing_backward(
+        return _exponential_stochastic_firing_backward(
             grad_output, ctx.saved_tensors[0],
             ctx.f_thres, ctx.beta, ctx.theta
         ), None, None, None
 
 
 class ExpStochasticFiring(BaseStochasticFiring):
+    """Exponential stochastic spiking module.
+
+    The firing rate is:
+        freq(v) = f_thres * exp(beta * (v - theta))
+    """
 
     def __init__(
         self, f_thres: float, beta: float, theta: float = 0.,
         spiking: bool = True
     ):
-        """
-        A wrapper for exponential stochastic firing function.
-        The firing rate can be computed as:
-            freq(v) = f_thres * exp(beta * (v - theta))
-        Notice that if the function is used as the spiking function for
+        """The constructor of ExpStochasticFiring.
+
+        Notice: if the function is used as the spiking function for
         spikingjelly.activation_based.BaseNode (i.e. the `surrogate_function`
-        argument), theta should be set to 0. (since threshold has already been
+        argument), theta should be set to 0 (since threshold has already been 
         subtracted from v in spikingjelly).
 
         Args:
-            f_thres (float)
-            beta (float)
-            theta (float, optional): Defaults to 0..
+            f_thres (float): the firing rate at v=theta.
+            beta (float): the steepness of the probability function curve.
+            theta (float, optional): adjust the probability function
+                horizontally. Defaults to 0. .
             spiking (bool, optional): whether returns spikes or firing rates. 
                 Defaults to True (returns spikes).
         """
@@ -188,4 +245,4 @@ class ExpStochasticFiring(BaseStochasticFiring):
         )
 
     def rate_function(self, v: torch.Tensor) -> torch.Tensor:
-        return tri_param_exp(v, self.f_thres, self.beta, self.theta)
+        return _tri_param_exp(v, self.f_thres, self.beta, self.theta)
