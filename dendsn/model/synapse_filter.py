@@ -1,3 +1,9 @@
+"""Synaptic filter models.
+
+This module defines various synaptic filters which filter (along time dimension)
+the raw signal given out by synaptic connections.
+"""
+
 import abc
 
 import torch
@@ -12,12 +18,21 @@ class BaseSynapseFilter(base.MemoryModule, abc.ABC):
         self.step_mode = step_mode
 
     @abc.abstractmethod
+    def reset(self):
+        pass
+
+    @abc.abstractmethod
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
         pass
 
     @abc.abstractmethod
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
-        pass
+        T = x_seq.shape[0]
+        y_seq = []
+        for t in range(T):
+            y = self.single_step_forward(x_seq[t])
+            y_seq.append(y)
+        return torch.stack(y_seq)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.step_mode == "s":
@@ -42,6 +57,9 @@ class IdentitySynapseFilter(BaseSynapseFilter):
         """
         super().__init__(step_mode = step_mode)
 
+    def reset(self):
+        pass
+
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
         return x
 
@@ -62,13 +80,9 @@ class LISynapseFilter(BaseSynapseFilter):
     def reset(self):
         self.leaky_integrator.reset()
 
-    @property
-    def state(self) -> torch.Tensor:
-        return self.leaky_integrator.v
-
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
         self.leaky_integrator.single_step_forward(x)
-        return self.state
+        return self.leaky_integrator.v
 
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         self.leaky_integrator.store_v_seq = True
