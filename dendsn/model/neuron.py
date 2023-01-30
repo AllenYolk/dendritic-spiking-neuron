@@ -203,6 +203,7 @@ class VForwardDendNeuron(BaseDendNeuron):
             soma (BaseNode): somatic model considering all the neurons.
             soma_shape (List[int]): the shape of the somatic voltage tensor in
                 this module. The spatial structure of the neurons in this layer.
+                The batch dimension should not be included in this list.
             forward_strength (Union[float, torch.Tensor], optional): 
                 the coupling strength of the feed-forward connections from the
                 output compartments to the soma (defined for a single neuron). 

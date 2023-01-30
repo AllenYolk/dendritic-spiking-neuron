@@ -5,6 +5,9 @@ import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils import data
+from torchvision import datasets
+from torchvision import transforms
 from spikingjelly.activation_based import neuron as sj_neuron
 from spikingjelly.activation_based import functional
 from spikingjelly.activation_based import surrogate
@@ -16,9 +19,10 @@ from dendsn.model import dend_compartment, wiring, dendrite
 from dendsn.model import synapse
 from dendsn.model import neuron
 from dendsn import stochastic_firing
+import reunn
 
 
-def dend_compartment_test(T: int = 5, N: int  = 3):
+def dend_compartment_test(T, N: int  = 3):
     print("====="*20)
     print("dendritic compartment dynamics test:")
     x_seq = torch.randn(size = [T, N]) + 0.5
@@ -492,12 +496,75 @@ def conv_test(
     ax0.legend()
     plt.show()
 
+
+def mnist_test(data_dir, log_dir, epoch, T, silent):
+    net = nn.Sequential(
+        layer.Flatten(),
+        layer.Linear(784, 512),
+        #sj_neuron.IFNode(),
+        neuron.VForwardDendNeuron(
+            dend = dendrite.SegregatedDend(
+                compartment=dend_compartment.PassiveDendCompartment(
+                    decay_input=False
+                ),
+                wiring=wiring.SegregatedDendWiring(n_compartment=1)
+            ),
+            soma = sj_neuron.LIFNode(),
+            soma_shape = [512],
+            step_mode = "m"
+        ),
+        layer.Linear(512, 128),
+        #sj_neuron.IFNode(),
+        neuron.VForwardDendNeuron(
+            dend = dendrite.SegregatedDend(
+                compartment=dend_compartment.PassiveDendCompartment(
+                    decay_input=False
+                ),
+                wiring=wiring.SegregatedDendWiring(n_compartment=1)
+            ),
+            soma = sj_neuron.LIFNode(),
+            soma_shape = [128],
+            step_mode = "m"
+        ),
+        layer.Linear(128, 10),
+    )
+    functional.set_step_mode(net, "m")
+    s = reunn.NetStats(
+        net=net, input_shape=[T, 1, 1, 28, 28], backend="spikingjelly"
+    )
+    s.print_summary()
+
+    train_loader = data.DataLoader(
+        datasets.MNIST(
+            root=data_dir, train=True, 
+            download=True, transform=transforms.ToTensor(),
+        ),
+        batch_size=64, shuffle=True
+    )
+    validation_loader = data.DataLoader(
+        datasets.MNIST(
+            root=data_dir, train=False, 
+            download=True, transform=transforms.ToTensor(),
+        ),
+        batch_size=64, shuffle=True
+    )
+    p = reunn.SupervisedClassificationTaskPipeline(
+        backend="spikingjelly", net=net, log_dir=log_dir, T=T,
+        criterion=nn.CrossEntropyLoss(),
+        optimizer=optim.Adam(params=net.parameters(),lr=1e-4),
+        train_loader=train_loader, validation_loader=validation_loader
+    )
+    p.train(epochs=epoch, validation=True, silent=silent, rec_runtime_msg=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description = "dendsj test")
-    parser.add_argument(
-        "--mode", "-m", type = str, default = "all",
-        help = "the mode of test.py (specifying the feature to be tested)"
-    )
+    parser.add_argument("--data_dir", type=str, default="../datasets/")
+    parser.add_argument("--log_dir", type=str, default="../log_dir")
+    parser.add_argument("-m", "--mode", type=str, default="mnist")
+    parser.add_argument("-s", "--silent", action="store_true")
+    parser.add_argument("-e", "--epochs", type=int, default=5)
+    parser.add_argument("-T", type=int, default=4)
     args = parser.parse_args()
 
     if args.mode == "dend_compartment":
@@ -518,6 +585,10 @@ def main():
         gradient_test()
     elif args.mode == "conv":
         conv_test()
+    elif args.mode == "mnist":
+        mnist_test(
+            args.data_dir, args.log_dir, args.epochs, args.T, args.silent
+        )
     elif args.mode == "all":
         dend_compartment_test()
         wiring_test()
