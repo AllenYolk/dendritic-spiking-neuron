@@ -14,12 +14,14 @@ from spikingjelly.activation_based import surrogate
 from spikingjelly.activation_based import layer
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import numpy as np
 
 from dendsn.model import dend_compartment, wiring, dendrite 
 from dendsn.model import synapse
 from dendsn.model import neuron
 from dendsn import stochastic_firing
 import reunn
+import cltask
 
 
 def dend_compartment_test(T, N: int  = 3):
@@ -497,21 +499,21 @@ def conv_test(
     plt.show()
 
 
-def mnist_test(data_dir, log_dir, epoch, T, silent):
+def mnist_test(data_dir, log_dir, epochs, T, silent):
     net = nn.Sequential(
         layer.Flatten(),
         layer.Linear(784, 512),
         #sj_neuron.IFNode(),
         neuron.VForwardDendNeuron(
-            dend = dendrite.SegregatedDend(
+            dend=dendrite.SegregatedDend(
                 compartment=dend_compartment.PassiveDendCompartment(
                     decay_input=False
                 ),
                 wiring=wiring.SegregatedDendWiring(n_compartment=1)
             ),
-            soma = sj_neuron.LIFNode(),
-            soma_shape = [512],
-            step_mode = "m"
+            soma=sj_neuron.LIFNode(),
+            soma_shape=[512],
+            step_mode="m"
         ),
         layer.Linear(512, 128),
         #sj_neuron.IFNode(),
@@ -554,7 +556,93 @@ def mnist_test(data_dir, log_dir, epoch, T, silent):
         optimizer=optim.Adam(params=net.parameters(),lr=1e-4),
         train_loader=train_loader, validation_loader=validation_loader
     )
-    p.train(epochs=epoch, validation=True, silent=silent, rec_runtime_msg=True)
+    p.train(epochs=epochs, validation=True, silent=silent, rec_runtime_msg=True)
+
+
+def continual_learning_test(data_dir, log_dir, epochs, T, silent, n_subtask):
+    net = nn.Sequential(
+        layer.Flatten(),
+        layer.Linear(784, 512),
+        #sj_neuron.IFNode(),
+        neuron.VForwardDendNeuron(
+            dend=dendrite.SegregatedDend(
+                compartment=dend_compartment.PassiveDendCompartment(
+                    decay_input=False
+                ),
+                wiring=wiring.SegregatedDendWiring(n_compartment=1)
+            ),
+            soma=sj_neuron.LIFNode(),
+            soma_shape=[512],
+            step_mode="m"
+        ),
+        layer.Linear(512, 128),
+        #sj_neuron.IFNode(),
+        neuron.VForwardDendNeuron(
+            dend = dendrite.SegregatedDend(
+                compartment=dend_compartment.PassiveDendCompartment(
+                    decay_input=False
+                ),
+                wiring=wiring.SegregatedDendWiring(n_compartment=1)
+            ),
+            soma = sj_neuron.LIFNode(),
+            soma_shape = [128],
+            step_mode = "m"
+        ),
+        layer.Linear(128, 10),
+    )
+    functional.set_step_mode(net, "m")
+    net = cltask.PermutationWrappedNetwork(net, apply_permutation=True)
+
+    train_loader = data.DataLoader(
+        dataset=datasets.MNIST(
+            root=data_dir, download=True, train=True,
+            transform=transforms.ToTensor()
+        ),
+        batch_size=64, shuffle=False, drop_last=False
+    )
+    test_loader = data.DataLoader(
+        dataset=datasets.MNIST(
+            root=data_dir, download=True, train=False, 
+            transform=transforms.ToTensor()
+        ),
+        batch_size=128, shuffle=False, drop_last=False
+    )
+    perms = []
+
+    test_acc_mat = np.zeros(shape=[n_subtask, n_subtask])
+    test_loss_mat = np.zeros_like(test_acc_mat)
+    for i in range(n_subtask):
+        perm = net.change_permutation()
+        perms.append(perm)
+
+        # train on subtask i
+        p = reunn.SupervisedClassificationTaskPipeline(
+            net=net, log_dir=log_dir, backend="spikingjelly", T=T,
+            criterion=nn.CrossEntropyLoss(),
+            optimizer=optim.Adam(net.parameters(), lr=1e-3),
+            train_loader=train_loader, test_loader = test_loader
+        )
+        p.train(epochs=epochs, validation=False, silent=silent)
+
+        # test on subtask 0~i
+        for j, perm in enumerate(perms):
+            if perm is not None:
+                net.change_permutation(perm)
+            result = p.test()
+            test_loss_mat[i, j] = result["test_loss"]
+            test_acc_mat[i, j] = result["test_acc"]
+        print(
+            f"<<<<<<<<<< {i+1} Learned Tasks, "
+            f"mean_test_loss={np.mean(test_loss_mat[i, 0:i+1])}, ",
+            f"mean_test_acc={np.mean(test_acc_mat[i, 0:i+1])}"
+            f"<<<<<<<<<<"
+        )
+
+    f, _ = cltask.plot_permuted_benchmark_result_matrix(
+        test_loss_mat=test_loss_mat, test_acc_mat=test_acc_mat
+    )
+    f.set_size_inches(12, 4)
+    plt.show()
 
 
 def main():
@@ -588,6 +676,11 @@ def main():
     elif args.mode == "mnist":
         mnist_test(
             args.data_dir, args.log_dir, args.epochs, args.T, args.silent
+        )
+    elif args.mode == "continual_learning":
+        continual_learning_test(
+            args.data_dir, args.log_dir, args.epochs, args.T, args.silent, 
+            n_subtask=20
         )
     elif args.mode == "all":
         dend_compartment_test()
