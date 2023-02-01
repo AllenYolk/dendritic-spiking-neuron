@@ -104,7 +104,7 @@ def neuron_test(
     print("neuron model test:")
     x_seq = torch.randn(size = [T, B, N]) + 3
 
-    dn = neuron.VForwardDendNeuron(
+    dn = neuron.VDiffForwardDendNeuron(
         dend = dendrite.VDiffDend(
             compartment = dend_compartment.PassiveDendCompartment(
                 tau = tau_dend, decay_input = True
@@ -118,7 +118,7 @@ def neuron_test(
         soma_shape = [n_soma],
         step_mode = "m"
     )
-    dn_fb = neuron.VForwardSBackwardDendNeuron(
+    dn_fb = neuron.VDiffForwardSBackwardDendNeuron(
         dend = dendrite.VDiffDend(
             compartment = dend_compartment.PassiveDendCompartment(
                 tau = tau_dend, decay_input = True
@@ -133,7 +133,7 @@ def neuron_test(
         soma_shape = [n_soma],
         step_mode = "m"
     )
-    bdn = neuron.VForwardDendNeuron(
+    bdn = neuron.VDiffForwardDendNeuron(
         dend = dendrite.VDiffDend(
             compartment = dend_compartment.PassiveDendCompartment(
                 tau = tau_dend, decay_input = True
@@ -148,7 +148,7 @@ def neuron_test(
         soma_shape = [n_soma],
         step_mode = "m"
     )
-    bdn_fb = neuron.VForwardSBackwardDendNeuron(
+    bdn_fb = neuron.VDiffForwardSBackwardDendNeuron(
         dend = dendrite.VDiffDend(
             compartment = dend_compartment.PassiveDendCompartment(
                 tau = tau_dend, decay_input = True
@@ -270,7 +270,7 @@ def stochastic_test(
         f_thres = 0.9, beta = 5., spiking = True
     )
 
-    dn = neuron.VForwardDendNeuron(
+    dn = neuron.VDiffForwardDendNeuron(
         dend = dendrite.VDiffDend(
             compartment = dend_compartment.PassiveDendCompartment(
                 tau = tau_dend, decay_input = True
@@ -286,7 +286,7 @@ def stochastic_test(
         soma_shape = [n_soma],
         step_mode = "s"
     )
-    dn2 = neuron.VForwardDendNeuron(
+    dn2 = neuron.VDiffForwardDendNeuron(
         dend = dendrite.VDiffDend(
             compartment = dend_compartment.PassiveDendCompartment(
                 tau = tau_dend, decay_input = True
@@ -357,7 +357,7 @@ def gradient_test(
     print("single-layer gradient BP test:")
     syn = nn.Linear(in_features = M, out_features = N, bias = False)
     #init.uniform_(syn.weight.data)
-    dn = neuron.VForwardDendNeuron(
+    dn = neuron.VDiffForwardDendNeuron(
         dend = dendrite.VDiffDend(
             compartment = dend_compartment.PassiveDendCompartment(
                 tau = tau_dend, decay_input = True
@@ -447,7 +447,7 @@ def conv_test(
     print("convolution test:")
     syn = layer.Conv2d(C1, C2, kernel_size = 2, stride = 1, step_mode = "m")
     #init.uniform_(syn.weight.data)
-    dn = neuron.VForwardDendNeuron(
+    dn = neuron.VDiffForwardDendNeuron(
         dend = dendrite.VDiffDend(
             compartment = dend_compartment.PassiveDendCompartment(
                 tau = tau_dend, decay_input = True
@@ -504,7 +504,7 @@ def mnist_test(data_dir, log_dir, epochs, T, silent):
         layer.Flatten(),
         layer.Linear(784, 512),
         #sj_neuron.IFNode(),
-        neuron.VForwardDendNeuron(
+        neuron.VDiffForwardDendNeuron(
             dend=dendrite.SegregatedDend(
                 compartment=dend_compartment.PassiveDendCompartment(
                     decay_input=False
@@ -517,7 +517,7 @@ def mnist_test(data_dir, log_dir, epochs, T, silent):
         ),
         layer.Linear(512, 128),
         #sj_neuron.IFNode(),
-        neuron.VForwardDendNeuron(
+        neuron.VDiffForwardDendNeuron(
             dend = dendrite.SegregatedDend(
                 compartment=dend_compartment.PassiveDendCompartment(
                     decay_input=False
@@ -564,7 +564,7 @@ def continual_learning_test(data_dir, log_dir, epochs, T, silent, n_subtask):
         layer.Flatten(),
         layer.Linear(784, 512),
         #sj_neuron.IFNode(),
-        neuron.VForwardDendNeuron(
+        neuron.VDiffForwardDendNeuron(
             dend=dendrite.SegregatedDend(
                 compartment=dend_compartment.PassiveDendCompartment(
                     decay_input=False
@@ -577,7 +577,7 @@ def continual_learning_test(data_dir, log_dir, epochs, T, silent, n_subtask):
         ),
         layer.Linear(512, 128),
         #sj_neuron.IFNode(),
-        neuron.VForwardDendNeuron(
+        neuron.VDiffForwardDendNeuron(
             dend = dendrite.SegregatedDend(
                 compartment=dend_compartment.PassiveDendCompartment(
                     decay_input=False

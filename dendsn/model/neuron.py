@@ -140,8 +140,10 @@ class BaseDendNeuron(base.MemoryModule, abc.ABC):
             )
 
         if len(self.soma_shape) == 1:
+            # after a nn.Linear layer
             return x.reshape([*shape_prefix, *self.soma_shape, -1])
         elif len(self.soma_shape) > 1:
+            # after a Conv2d layer
             x = x.reshape([*shape_prefix, -1, *self.soma_shape])
             ax = len(shape_prefix)
             perm_trans = [i for i in range(len(x.shape))]
@@ -173,14 +175,14 @@ class BaseDendNeuron(base.MemoryModule, abc.ABC):
             )
 
 
-class VForwardDendNeuron(BaseDendNeuron):
-    """A layer of neurons that transmit dendritic voltages forward to the soma.
+class VDiffForwardDendNeuron(BaseDendNeuron):
+    """A layer of neurons that transmit (v_dend - v_soma) forward to the soma.
 
     The input to the soma is determined by the voltage difference between the 
     soma and the output compartments. The input to soma a in this layer is:
         J_{a} = \sum_i phi_{ia}(v_i - v_a)
-    where i can be all output compartment in neuron a, and phi_{ij} is the 
-    feed forward coupling strength.
+    where i can be all output dendritic compartments in neuron a, and phi_{ij} 
+    is the feed forward coupling strength.
 
     Attributes:
         dend, soma, soma_shape, n_soma, step_mode: see BaseDendNeuron.
@@ -196,7 +198,7 @@ class VForwardDendNeuron(BaseDendNeuron):
         forward_strength: Union[float, torch.Tensor] = 1.,
         step_mode: str = "s"
     ):
-        """The constructor of VForwardDendNeuron.
+        """The constructor of VDiffForwardDendNeuron.
 
         Args:
             dend (BaseDend): dendrite model for a single neuron.
@@ -253,18 +255,18 @@ class VForwardDendNeuron(BaseDendNeuron):
 
 
 
-class VForwardSBackwardDendNeuron(BaseDendNeuron):
+class VDiffForwardSBackwardDendNeuron(BaseDendNeuron):
     """Neurons with bidirectional signal transmission between dendrite and soma.
 
     Besides the delta_v-driven feed forward signal transmission from dendrite to
-    soma defined in VForwardDendNeuron, this module introduces a 
+    soma defined in VDiffForwardDendNeuron, this module introduces a 
     somatic-spike-driven feedback mechanism from soma to dendrite. If a spike is
     generated in the soma, a back-propagated voltage will be added to all the 
     output compartments.
 
     Args:
         dend, soma, soma_shape, n_soma, step_mode: see BaseDendNeuron.
-        forward_strength: see VForwardDendNeuron.
+        forward_strength: see VDiffForwardDendNeuron.
         backward_strength: the feedback coupling strength from the soma to the
             output compartments, defined for a single neuron, which can be
             a Tensor with shape [1, dend.wiring.n_output] or a float (can be 
@@ -278,7 +280,7 @@ class VForwardSBackwardDendNeuron(BaseDendNeuron):
         backward_strength: Union[float, torch.Tensor] = 1.,
         step_mode: str = "s"
     ):
-        """The constructor of VForwardSBackwardDendNeuron.
+        """The constructor of VDiffForwardSBackwardDendNeuron.
 
         Args:
             dend (BaseDend): dendrite model for a single neuron.
