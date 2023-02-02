@@ -534,7 +534,7 @@ def mnist_test(data_dir, log_dir, epochs, T, silent):
     s = reunn.NetStats(
         net=net, input_shape=[T, 1, 1, 28, 28], backend="spikingjelly"
     )
-    #s.print_summary()
+    s.print_summary()
 
     train_loader = data.DataLoader(
         datasets.MNIST(

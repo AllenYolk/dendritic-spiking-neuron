@@ -300,6 +300,8 @@ class VDiffForwardDendNeuron(VForwardDendNeuron):
         self, v_dend_output: torch.Tensor, v_soma: torch.Tensor
     ) -> torch.Tensor:
         input2soma = (v_dend_output-v_soma.unsqueeze(-1))
+        #w = self.forward_strength * torch.ones([self.dend.wiring.n_output])
+        #return input2soma @ w
         input2soma = input2soma * self.forward_strength
         return input2soma.sum(dim=-1)
 
