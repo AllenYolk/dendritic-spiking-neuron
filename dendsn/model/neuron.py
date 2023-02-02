@@ -300,8 +300,8 @@ class VDiffForwardDendNeuron(VForwardDendNeuron):
         self, v_dend_output: torch.Tensor, v_soma: torch.Tensor
     ) -> torch.Tensor:
         input2soma = (v_dend_output-v_soma.unsqueeze(-1))
-        w = self.forward_strength*torch.ones([self.dend.wiring.n_output])
-        return input2soma @ w
+        input2soma = input2soma * self.forward_strength
+        return input2soma.sum(dim=-1)
 
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         """This implementation is equivalent but more efficient than default.
@@ -374,8 +374,8 @@ class VActivationForwardDendNeuron(VForwardDendNeuron):
         self, v_dend_output: torch.Tensor, v_soma: torch.Tensor
     ) -> torch.Tensor:
         input2soma = self.f_da(v_dend_output)
-        w =  self.forward_strength * torch.ones([self.dend.wiring.n_output])
-        return input2soma @ w
+        input2soma = input2soma * self.forward_strength
+        return input2soma.sum(dim=-1)
 
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         """This implementation is equivalent but more efficient than default.
@@ -554,8 +554,8 @@ class VDiffForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
         self, v_dend_output: torch.Tensor, v_soma: torch.Tensor
     ) -> torch.Tensor:
         input2soma = (v_dend_output-v_soma.unsqueeze(-1))
-        w = self.forward_strength * torch.ones([self.dend.wiring.n_output])
-        return input2soma @ w
+        input2soma = input2soma * self.forward_strength
+        return input2soma.sum(dim=-1)
 
     def bp_soma_spike(self, soma_spike: torch.Tensor):
         # soma_spike.shape = [N, *self.soma_shape]
@@ -623,8 +623,8 @@ class VActivationForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
         self, v_dend_output: torch.Tensor, v_soma: torch.Tensor
     ) -> torch.Tensor:
         input2soma = self.f_da(v_dend_output)
-        w = self.forward_strength * torch.ones([self.dend.wiring.n_output])
-        return input2soma @ w
+        input2soma = input2soma * self.forward_strength
+        return input2soma.sum(dim=-1)
 
     def soma_spike_backprop(self, soma_spike: torch.Tensor):
         # soma_spike.shape = [N, *self.soma_shape]
