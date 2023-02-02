@@ -24,7 +24,7 @@ import reunn
 import cltask
 
 
-def dend_compartment_test(T, N: int  = 3):
+def dend_compartment_test(T=10, N: int  = 3):
     print("====="*20)
     print("dendritic compartment dynamics test:")
     x_seq = torch.randn(size = [T, N]) + 0.5
@@ -440,7 +440,7 @@ def conv_test(
     T: int = 25, B: int = 32, C1: int = 3, C2: int = 24,
     h: int = 4, w: int = 5,
     k1: int = 4, soma_channel: int = 3, tau_dend = 3., tau_soma = 20.,
-    iterations: int = 10000, lr = 1.,
+    iterations: int = 1000, lr = 1.,
     surrogate_function = surrogate.Sigmoid()
 ):
     print("====="*20)
@@ -534,7 +534,7 @@ def mnist_test(data_dir, log_dir, epochs, T, silent):
     s = reunn.NetStats(
         net=net, input_shape=[T, 1, 1, 28, 28], backend="spikingjelly"
     )
-    s.print_summary()
+    #s.print_summary()
 
     train_loader = data.DataLoader(
         datasets.MNIST(
