@@ -508,12 +508,13 @@ def conv_test(
     plt.show()
 
 
-def mnist_test(data_dir, log_dir, epochs, T, silent):
-    net = nn.Sequential(
-        layer.Flatten(),
-        layer.Linear(784, 512),
-        #sj_neuron.IFNode(),
-        neuron.VDiffForwardDendNeuron(
+def mnist_fc_net(neuron_type):
+    def gaussian(x):
+        return torch.exp(-0.5 * ((x)**2)) / (2 * torch.pi)**0.5 * 4
+    def gaussian_dca(x):
+        return torch.exp(-0.5 * ((x-0.5)**2)) / (2 * torch.pi)**0.5 * 2.5
+    if neuron_type == "VDiffForward":
+        n1 = neuron.VDiffForwardDendNeuron(
             dend=dendrite.SegregatedDend(
                 compartment=dend_compartment.PassiveDendCompartment(
                     decay_input=False
@@ -523,10 +524,8 @@ def mnist_test(data_dir, log_dir, epochs, T, silent):
             soma=sj_neuron.LIFNode(),
             soma_shape=[512],
             step_mode="m"
-        ),
-        layer.Linear(512, 128),
-        #sj_neuron.IFNode(),
-        neuron.VDiffForwardDendNeuron(
+        )
+        n2 = neuron.VDiffForwardDendNeuron(
             dend = dendrite.SegregatedDend(
                 compartment=dend_compartment.PassiveDendCompartment(
                     decay_input=False
@@ -536,24 +535,105 @@ def mnist_test(data_dir, log_dir, epochs, T, silent):
             soma = sj_neuron.LIFNode(),
             soma_shape = [128],
             step_mode = "m"
-        ),
+        )
+    elif neuron_type == "VActivationForward":
+        n1 = neuron.VActivationForwardDendNeuron(
+            dend=dendrite.SegregatedDend(
+                compartment=dend_compartment.PassiveDendCompartment(
+                    decay_input=False,
+                ),
+                wiring=wiring.SegregatedDendWiring(n_compartment=1),
+            ),
+            soma=sj_neuron.LIFNode(),
+            soma_shape=[512], f_da=gaussian,
+            step_mode="m"
+        )
+        n2 = neuron.VActivationForwardDendNeuron(
+            dend=dendrite.SegregatedDend(
+                compartment=dend_compartment.PassiveDendCompartment(
+                    decay_input=False,
+                ),
+                wiring=wiring.SegregatedDendWiring(n_compartment=1),
+            ),
+            soma=sj_neuron.LIFNode(),
+            soma_shape=[128], f_da=gaussian,
+            step_mode="m"
+        )
+    elif neuron_type == "LocalActivationVDiffForward":
+        n1 = neuron.VDiffForwardDendNeuron(
+            dend=dendrite.SegregatedDend(
+                compartment=dend_compartment.PAComponentDendCompartment(
+                    decay_input=False, f_dca=gaussian_dca
+                ),
+                wiring=wiring.SegregatedDendWiring(n_compartment=1)
+            ),
+            soma=sj_neuron.LIFNode(),
+            soma_shape=[512],
+            step_mode="m"
+        )
+        n2 = neuron.VDiffForwardDendNeuron(
+            dend = dendrite.SegregatedDend(
+                compartment=dend_compartment.PAComponentDendCompartment(
+                    decay_input=False, f_dca=gaussian_dca
+                ),
+                wiring=wiring.SegregatedDendWiring(n_compartment=1)
+            ),
+            soma = sj_neuron.LIFNode(),
+            soma_shape = [128],
+            step_mode = "m"
+        )
+    elif neuron_type == "LocalActivationVForward":
+        n1 = neuron.VActivationForwardDendNeuron(
+            dend=dendrite.SegregatedDend(
+                compartment=dend_compartment.PAComponentDendCompartment(
+                    decay_input=False, f_dca=gaussian_dca
+                ),
+                wiring=wiring.SegregatedDendWiring(n_compartment=1)
+            ),
+            soma=sj_neuron.LIFNode(),
+            soma_shape=[512], f_da=lambda x: x,
+            step_mode="m"
+        )
+        n2 = neuron.VActivationForwardDendNeuron(
+            dend = dendrite.SegregatedDend(
+                compartment=dend_compartment.PAComponentDendCompartment(
+                    decay_input=False, f_dca=gaussian_dca
+                ),
+                wiring=wiring.SegregatedDendWiring(n_compartment=1)
+            ),
+            soma = sj_neuron.LIFNode(),
+            soma_shape = [128], f_da=lambda x: x,
+            step_mode = "m"
+        )
+
+    net = nn.Sequential(
+        layer.Flatten(),
+        layer.Linear(784, 512),
+        n1,
+        layer.Linear(512, 128),
+        n2,
         layer.Linear(128, 10),
     )
     functional.set_step_mode(net, "m")
+    return net
+
+
+def fmnist_test(neuron_type, data_dir, log_dir, epochs, T, silent):
+    net = mnist_fc_net(neuron_type)
     s = reunn.NetStats(
         net=net, input_shape=[T, 1, 1, 28, 28], backend="spikingjelly"
     )
     s.print_summary()
 
     train_loader = data.DataLoader(
-        datasets.MNIST(
+        datasets.FashionMNIST(
             root=data_dir, train=True, 
             download=True, transform=transforms.ToTensor(),
         ),
         batch_size=64, shuffle=True
     )
     validation_loader = data.DataLoader(
-        datasets.MNIST(
+        datasets.FashionMNIST(
             root=data_dir, train=False, 
             download=True, transform=transforms.ToTensor(),
         ),
@@ -658,10 +738,13 @@ def main():
     parser = argparse.ArgumentParser(description = "dendsj test")
     parser.add_argument("--data_dir", type=str, default="../datasets/")
     parser.add_argument("--log_dir", type=str, default="../log_dir")
-    parser.add_argument("-m", "--mode", type=str, default="mnist")
+    parser.add_argument("-m", "--mode", type=str, default="fmnist")
     parser.add_argument("-s", "--silent", action="store_true")
     parser.add_argument("-e", "--epochs", type=int, default=5)
     parser.add_argument("-T", type=int, default=4)
+    parser.add_argument(
+        "-nt", "--neuron_type", type=str, default="VActivationForward"
+    )
     args = parser.parse_args()
 
     if args.mode == "dend_compartment":
@@ -682,9 +765,10 @@ def main():
         gradient_test()
     elif args.mode == "conv":
         conv_test()
-    elif args.mode == "mnist":
-        mnist_test(
-            args.data_dir, args.log_dir, args.epochs, args.T, args.silent
+    elif args.mode == "fmnist":
+        fmnist_test(
+            args.neuron_type, args.data_dir, args.log_dir, 
+            args.epochs, args.T, args.silent
         )
     elif args.mode == "continual_learning":
         continual_learning_test(
