@@ -138,6 +138,12 @@ class PAComponentDendCompartment(BaseDendCompartment):
     voltage component. The overall voltage is the sum of active and passive 
     components: 
         v[t] = va[t] + vp[t] = f_dca(vp[t]) + vp[t]
+    Get inspiration from:
+    Legenstein, R., & Maass, W. (2011). Branch-specific plasticity enables 
+    self-organization of nonlinear computation in single neurons. The Journal 
+    of Neuroscience: The Official Journal of the Society for Neuroscience, 
+    31(30), 10787–10802. https://doi.org/10.1523/JNEUROSCI.5684-10.2011
+
 
     Attributes:
         v (Union[float, torch.Tensor]): voltage of the dendritic compartment(s)
