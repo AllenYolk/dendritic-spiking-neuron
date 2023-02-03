@@ -12,6 +12,7 @@ from typing import Union, Optional
 import abc
 
 import torch
+from torch.nn import parameter
 from spikingjelly.activation_based import base
 
 from dendsn import functional
@@ -150,7 +151,7 @@ class SegregatedDend(BaseDend):
     call extend_external_input() or get_output(), since
 
     Attributes:
-        See base class: BaseDend.
+        compartment, wiring, step_mode: see base class: BaseDend.
     """
 
     def __init__(
@@ -204,7 +205,10 @@ class VDiffDend(BaseDend):
         coupling_strength (float or torch.Tensor): the coupling strength theta
             between dendritic compartments. If it's a torch.Tensor, its shape 
             should be [wiring.n_compartment, wiring.n_compartment].
-            If coupling_strength is a float, it is broadcasted into a Tensor.
+            If coupling_strength is a float, the same coupling strength is 
+            applied to all the connections (even if new weights are learned).
+        coupling_strength_learnable (bool): whether to compute the grad of
+                coupling_strength or not.
         compartment, wiring, step_mode: see base class BaseDend.
     """
 
@@ -212,9 +216,10 @@ class VDiffDend(BaseDend):
         self, compartment: dend_compartment.BaseDendCompartment,
         wiring: wr.BaseWiring, 
         coupling_strength: Union[float, torch.Tensor] = 1.,
+        coupling_strength_learnable: bool = False,
         step_mode: str = "s" 
     ):
-        """The constructor of VDiffDend
+        """The constructor of VDiffDend.
 
         Args:
             compartment (BaseDendCompartment): dendritic compartment model
@@ -225,12 +230,29 @@ class VDiffDend(BaseDend):
                 in `wiring`. If it's a torch.Tensor, its shape should be 
                 [wiring.n_compartment, wiring.n_compartment]. 
                 If it's a float, the same coupling strength is applied to all 
-                the connections. Defaults to 1. .
+                the connections (even if new weights are learned). 
+                Defaults to 1. .
+            coupling_strength_learnable (bool): whether to compute the grad of
+                coupling_strength or not. Defaults to False.
             step_mode (str, optional): "s" for single-step mode, and "m" for 
                 multi-step mode. Defaults to "s".
         """
         super().__init__(compartment, wiring, step_mode)
+        self._coupling_strength_learnable = coupling_strength_learnable
+        self.coupling_strength = parameter.Parameter(
+            data=torch.tensor(coupling_strength),
+            requires_grad=coupling_strength_learnable
+        )
         self.coupling_strength = coupling_strength
+
+    @property
+    def coupling_strength_learnable(self) -> bool:
+        return self._coupling_strength_learnable
+
+    @coupling_strength_learnable.setter
+    def coupling_strength_learnable(self, v: bool):
+        self._coupling_strength_learnable = v
+        self.coupling_strength.requires_grad = v
 
     def get_internal_input(self) -> torch.Tensor:
         v = self.compartment.v # v.shape = [..., n_comp]

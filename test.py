@@ -510,7 +510,7 @@ def conv_test(
 
 def mnist_fc_net(neuron_type):
     def gaussian(x):
-        return torch.exp(-0.5 * ((x)**2)) / (2 * torch.pi)**0.5 * 4
+        return torch.exp(-0.5 * ((x)**2)) / (2 * torch.pi)**0.5 * 2
     def gaussian_dca(x):
         return torch.exp(-0.5 * ((x-0.5)**2)) / (2 * torch.pi)**0.5 * 2.5
     if neuron_type == "VDiffForward":
@@ -546,6 +546,7 @@ def mnist_fc_net(neuron_type):
             ),
             soma=sj_neuron.LIFNode(),
             soma_shape=[512], f_da=gaussian,
+            forward_strength_learnable=True,
             step_mode="m"
         )
         n2 = neuron.VActivationForwardDendNeuron(
@@ -557,6 +558,7 @@ def mnist_fc_net(neuron_type):
             ),
             soma=sj_neuron.LIFNode(),
             soma_shape=[128], f_da=gaussian,
+            forward_strength_learnable=True,
             step_mode="m"
         )
     elif neuron_type == "LocalActivationVDiffForward":
@@ -645,7 +647,13 @@ def fmnist_test(neuron_type, data_dir, log_dir, epochs, T, silent):
         optimizer=optim.Adam(params=net.parameters(),lr=1e-4),
         train_loader=train_loader, validation_loader=validation_loader
     )
-    p.train(epochs=epochs, validation=True, silent=silent, rec_runtime_msg=True)
+    p.train(
+        epochs=epochs, validation=True, silent=silent, rec_runtime_msg=False
+    )
+    for k, v in net.named_parameters():
+        if k[-3:] == "gth":
+            print(f"{k}={v}")
+
 
 
 def continual_learning_test(data_dir, log_dir, epochs, T, silent, n_subtask):

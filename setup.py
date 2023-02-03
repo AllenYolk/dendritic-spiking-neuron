@@ -9,7 +9,7 @@ with open("./README.md", "r", encoding = "utf-8") as f:
 
 setup(
     name = "dendsn",
-    version = "0.1.0",
+    version = "0.2.0",
     author = "AllenYolk (Huang Yifan, from Peking University)",
     author_email = "huang2627099045@gmail.com",
     description = ("A dendritic computing framework "

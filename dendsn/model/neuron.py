@@ -10,6 +10,8 @@ import abc
 from typing import Union, List, Optional, Callable
 
 import torch
+import torch.nn as nn
+from torch.nn import parameter
 import numpy as np
 from spikingjelly.activation_based import neuron as sj_neuron
 from spikingjelly.activation_based import base
@@ -188,12 +190,15 @@ class VForwardDendNeuron(BaseDendNeuron, abc.ABC):
             compartments to the soma, defined for a single neuron, which can be
             a Tensor with shape [dend.wiring.n_output] or a float (can be 
             broadcasted into a Tensor).
+        forward_strength_learnable: whether to compute the grad of
+            forward_strength or not.
     """
 
     def __init__(
         self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode,
         soma_shape: List[int], 
         forward_strength: Union[float, torch.Tensor] = 1.,
+        forward_strength_learnable: bool = False,
         step_mode: str = "s"
     ):
         """The constructor of VForwardDendNeuron.
@@ -209,12 +214,28 @@ class VForwardDendNeuron(BaseDendNeuron, abc.ABC):
                 output compartments to the soma (defined for a single neuron). 
                 If it's a torch.Tensor, its shape should be 
                 [dend.wiring.n_output]. If it's a float, the same strength
-                will be applied to all the connections. Defaults to 1. .
+                will be always be applied to all the connections (even if new 
+                weights are learned). Defaults to 1. .
+            forward_strength_learnable (bool): whether to compute the grad of
+                forward_strength or not. Defaults to None.
             step_mode (str, optional): "s" for single-step mode, and "m" for 
                 multi-step mode. Defaults to "s".
         """
         super().__init__(dend, soma, soma_shape, step_mode)
-        self.forward_strength = forward_strength
+        self._forward_strength_learnable = forward_strength_learnable
+        self.forward_strength = parameter.Parameter(
+            data=torch.tensor(forward_strength), 
+            requires_grad=forward_strength_learnable
+        )
+
+    @property
+    def forward_strength_learnable(self) -> bool:
+        return self._forward_strength_learnable
+
+    @forward_strength_learnable.setter
+    def forward_strength_learnable(self, v: bool):
+        self._forward_strength_learnable = v
+        self.forward_strength.requires_grad = v
 
     @abc.abstractmethod
     def get_input2soma(
@@ -268,13 +289,14 @@ class VDiffForwardDendNeuron(VForwardDendNeuron):
 
     Attributes:
         dend, soma, soma_shape, n_soma, step_mode: see BaseDendNeuron.
-        forward_strength: see VForwardDendNeuron.
+        forward_strength, forward_strength_learnable: see VForwardDendNeuron.
     """
 
     def __init__(
         self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode,
         soma_shape: List[int],
         forward_strength: Union[float, torch.Tensor] = 1.,
+        forward_strength_learnable: bool = False,
         step_mode: str = "s"
     ):
         """The constructor of VDiffForwardDendNeuron.
@@ -290,11 +312,17 @@ class VDiffForwardDendNeuron(VForwardDendNeuron):
                 output compartments to the soma (defined for a single neuron). 
                 If it's a torch.Tensor, its shape should be 
                 [dend.wiring.n_output]. If it's a float, the same strength
-                will be applied to all the connections. Defaults to 1. .
+                will be applied to all the connections (even if new weights are
+                learned). Defaults to 1. .
+            forward_strength_learnable (bool): whether to compute the grad of
+                forward_strength or not. Defaults to None.
             step_mode (str, optional): "s" for single-step mode, and "m" for 
                 multi-step mode. Defaults to "s".
         """
-        super().__init__(dend, soma, soma_shape, forward_strength, step_mode)
+        super().__init__(
+            dend, soma, soma_shape, 
+            forward_strength, forward_strength_learnable, step_mode
+        )
 
     def get_input2soma(
         self, v_dend_output: torch.Tensor, v_soma: torch.Tensor
@@ -341,13 +369,14 @@ class VActivationForwardDendNeuron(VForwardDendNeuron):
         dend, soma, soma_shape, n_soma, step_mode: see BaseDendNeuron.
         f_da: the dendritic activation function applied on all the output 
             dendritic compartmental voltages.
-        forward_strength: see VForwardDendNeuron.
+        forward_strength, forward_strength_learnable: see VForwardDendNeuron.
     """
 
     def __init__(
         self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode,
         soma_shape: List[int], f_da: Callable,
         forward_strength: Union[float, torch.Tensor] = 1.,
+        forward_strength_learnable: bool = False,
         step_mode: str = "s"
     ):
         """The constructor of VActivationForwardDendNeuron.
@@ -365,11 +394,17 @@ class VActivationForwardDendNeuron(VForwardDendNeuron):
                 output compartments to the soma (defined for a single neuron). 
                 If it's a torch.Tensor, its shape should be 
                 [dend.wiring.n_output]. If it's a float, the same strength
-                will be applied to all the connections. Defaults to 1. .
+                will be applied to all the connections (even if new weights are
+                learned). Defaults to 1. .
+            forward_strength_learnable (bool): whether to compute the grad of
+                forward_strength or not. Defaults to None.
             step_mode (str, optional): "s" for single-step mode, and "m" for 
                 multi-step mode. Defaults to "s".
         """
-        super().__init__(dend, soma, soma_shape, forward_strength, step_mode)
+        super().__init__(
+            dend, soma, soma_shape, 
+            forward_strength, forward_strength_learnable, step_mode
+        )
         self.f_da = f_da
 
     def get_input2soma(
@@ -409,17 +444,23 @@ class VForwardSBackwardDendNeuron(BaseDendNeuron, abc.ABC):
             compartments to the soma, defined for a single neuron, which can be
             a Tensor with shape [dend.wiring.n_output] or a float (can be 
             broadcasted into a Tensor).
+        forward_strength_learnable: whether to compute the grad of
+            forward_strength or not.
         backward_strength: the feedback coupling strength from the soma to the
             output compartments, defined for a single neuron, which can be
             a Tensor with shape [dend.wiring.n_output] or a float (can be 
             broadcasted into a Tensor).
+        backward_strength_learnable: whether to compute the grad of 
+            backward_strength or not.
     """
 
     def __init__(
         self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode, 
         soma_shape: List[int], 
         forward_strength: Union[float, torch.Tensor] = 1.,
+        forward_strength_learnable: bool = False,
         backward_strength: Union[float, torch.Tensor] = 1.,
+        backward_strength_learnable: bool = False,
         step_mode: str = "s"
     ):
         """The constructor of VForwardSBackwardDendNeuron.
@@ -434,19 +475,51 @@ class VForwardSBackwardDendNeuron(BaseDendNeuron, abc.ABC):
                 output compartments to the soma (defined for a single neuron). 
                 If it's a torch.Tensor, its shape should be 
                 [dend.wiring.n_output]. If it's a float, the same strength
-                will be applied to all the connections. Defaults to 1..
+                will be applied to all the connections (even if new weights are
+                learned). Defaults to 1..
+            forward_strength_learnable (bool): whether to compute the grad of
+                forward_strength or not. Defaults to None.
             backward_strength (Union[float, torch.Tensor], optional):
                 the coupling strength of the feedback connections from the
                 soma to the output compartments (defined for a single neuron). 
                 If it's a torch.Tensor, its shape should be 
                 [dend.wiring.n_output]. If it's a float, the same strength
-                will be applied to all the connections. Defaults to 1..
+                will be applied to all the connections (even if new weights are
+                learned). Defaults to 1..
+            backward_strength_learnable (bool): whether to compute the grad of
+                backward_strength or not. Defaults to None.
             step_mode (str, optional): "s" for single-step mode, and "m" for 
                 multi-step mode. Defaults to "s".
         """
         super().__init__(dend, soma, soma_shape, step_mode)
-        self.forward_strength = forward_strength
-        self.backward_strength = backward_strength
+        self._forward_strength_learnable = forward_strength_learnable
+        self.forward_strength = parameter.Parameter(
+            data=torch.tensor(forward_strength), 
+            requires_grad=forward_strength_learnable
+        )
+        self._backward_strength_learnable = backward_strength_learnable
+        self.backward_strength = parameter.Parameter(
+            data=torch.tensor(backward_strength), 
+            requires_grad=backward_strength_learnable
+        )
+
+    @property
+    def forward_strength_learnable(self) -> bool:
+        return self._forward_strength_learnable
+
+    @forward_strength_learnable.setter
+    def forward_strength_learnable(self, v: bool):
+        self._forward_strength_learnable = v
+        self.forward_strength.requires_grad = v
+
+    @property
+    def backward_strength_learnable(self) -> bool:
+        return self._backward_strength_learnable
+
+    @backward_strength_learnable.setter
+    def backward_strength_learnable(self, v: bool):
+        self._backward_strength_learnable = v
+        self.backward_strength.requires_grad = v
 
     @abc.abstractmethod
     def get_input2soma(
@@ -515,14 +588,17 @@ class VDiffForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
 
     Args:
         dend, soma, soma_shape, n_soma, step_mode: see BaseDendNeuron.
-        forward_strength, backward_strength: see VForwardSBackwardNeuron.
+        forward_strength, forward_strength_learnable, backward_strength,
+            backward_strength_learnable: see VForwardSBackwardNeuron.
     """
 
     def __init__(
         self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode, 
         soma_shape: List[int],
         forward_strength: Union[float, torch.Tensor] = 1.,
+        forward_strength_learnable: bool = False,
         backward_strength: Union[float, torch.Tensor] = 1.,
+        backward_strength_learnable: bool = False,
         step_mode: str = "s"
     ):
         """The constructor of VDiffForwardSBackwardDendNeuron.
@@ -537,18 +613,26 @@ class VDiffForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
                 output compartments to the soma (defined for a single neuron). 
                 If it's a torch.Tensor, its shape should be 
                 [dend.wiring.n_output]. If it's a float, the same strength
-                will be applied to all the connections. Defaults to 1..
+                will be applied to all the connections (even if new weights are
+                learned). Defaults to 1..
+            forward_strength_learnable (bool): whether to compute the grad of
+                forward_strength or not. Defaults to None.
             backward_strength (Union[float, torch.Tensor], optional):
                 the coupling strength of the feedback connections from the
                 soma to the output compartments (defined for a single neuron). 
                 If it's a torch.Tensor, its shape should be 
                 [dend.wiring.n_output]. If it's a float, the same strength
-                will be applied to all the connections. Defaults to 1..
+                will be applied to all the connections (even if new weights are
+                learned). Defaults to 1..
+            backward_strength_learnable (bool): whether to compute the grad of
+                backward_strength or not. Defaults to None.
             step_mode (str, optional): "s" for single-step mode, and "m" for 
                 multi-step mode. Defaults to "s".
         """
         super().__init__(
-            dend, soma, soma_shape, forward_strength, backward_strength,
+            dend, soma, soma_shape, 
+            forward_strength, forward_strength_learnable,
+            backward_strength, backward_strength_learnable,
             step_mode
         )
 
@@ -581,14 +665,17 @@ class VActivationForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
         dend, soma, soma_shape, n_soma, step_mode: see BaseDendNeuron.
         f_da: the dendritic activation function applied on all the output 
             dendritic compartmental voltages. 
-        forward_strength, backward_strength: see VForwardSBackwardNeuron.
+        forward_strength, forward_strength_learnable, backward_strength,
+            backward_strength_learnable: see VForwardSBackwardNeuron.
     """
 
     def __init__(
         self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode, 
         soma_shape: List[int], f_da: Callable,
         forward_strength: Union[float, torch.Tensor] = 1.,
+        forward_strength_learnable: bool = False,
         backward_strength: Union[float, torch.Tensor] = 1.,
+        backward_strength_learnable: bool = False,
         step_mode: str = "s"
     ):
         """The constructor of VActivationForwardSBackwardDendNeuron.
@@ -605,18 +692,26 @@ class VActivationForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
                 output compartments to the soma (defined for a single neuron). 
                 If it's a torch.Tensor, its shape should be 
                 [dend.wiring.n_output]. If it's a float, the same strength
-                will be applied to all the connections. Defaults to 1..
+                will be applied to all the connections (even if new weights are
+                learned). Defaults to 1..
+            forward_strength_learnable (bool): whether to compute the grad of
+                forward_strength or not. Defaults to None.
             backward_strength (Union[float, torch.Tensor], optional):
                 the coupling strength of the feedback connections from the
                 soma to the output compartments (defined for a single neuron). 
                 If it's a torch.Tensor, its shape should be 
                 [dend.wiring.n_output]. If it's a float, the same strength
-                will be applied to all the connections. Defaults to 1..
+                will be applied to all the connections (even if new weights are
+                learned). Defaults to 1..
+            backward_strength_learnable (bool): whether to compute the grad of
+                backward_strength or not. Defaults to None.
             step_mode (str, optional): "s" for single-step mode, and "m" for 
                 multi-step mode. Defaults to "s".
         """
         super().__init__(
-            dend, soma, soma_shape, forward_strength, backward_strength,
+            dend, soma, soma_shape, 
+            forward_strength, forward_strength_learnable,
+            backward_strength, backward_strength_learnable,
             step_mode
         )
         self.f_da = f_da
