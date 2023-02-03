@@ -24,27 +24,36 @@ import reunn
 import cltask
 
 
-def dend_compartment_test(T=10, N: int  = 3):
+def dend_compartment_test(T=5, N: int  = 3):
     print("====="*20)
     print("dendritic compartment dynamics test:")
     x_seq = torch.randn(size = [T, N]) + 0.5
 
-    dend = dend_compartment.PassiveDendCompartment(
-        decay_input = True, step_mode = "m"
+    dend1 = dend_compartment.PassiveDendCompartment(
+        decay_input=True, step_mode="m"
     )
-    v_seq = dend(x_seq)
+    dend2 = dend_compartment.PAComponentDendCompartment(
+        decay_input=True, step_mode="m",
+        f_dca=lambda x: torch.where(x<0., 0., 1.)
+    )
+    v1_seq = dend1(x_seq)
+    v2_seq = dend2(x_seq)
     for t in range(T):
         print(f"t = {t}:")
         print(f"    x = {x_seq[t]}")
-        print(f"    v = {v_seq[t]} [decay input]")
+        print(f"    v = {v1_seq[t]} [P, decay input]")
+        print(f"    v = {v2_seq[t]} [PA, decay input]")
 
-    dend.reset()
-    dend.decay_input = False
-    v_seq = dend(x_seq)
+    dend1.reset()
+    dend1.decay_input = False
+    dend2.decay_input = False
+    v_seq = dend1(x_seq)
+    v_seq = dend2(x_seq)
     for t in range(T):
         print(f"t = {t}:")
         print(f"    x = {x_seq[t]}")
-        print(f"    v = {v_seq[t]} [not decay input]")  
+        print(f"    v = {v1_seq[t]} [P, not decay input]")  
+        print(f"    v = {v2_seq[t]} [PA, not decay input]") 
 
 
 def wiring_test():
@@ -656,7 +665,7 @@ def main():
     args = parser.parse_args()
 
     if args.mode == "dend_compartment":
-        dend_compartment_test()
+        dend_compartment_test(T=5, N=3)
     elif args.mode == "wiring":
         wiring_test()
     elif args.mode == "dendrite":

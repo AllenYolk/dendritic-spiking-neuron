@@ -8,6 +8,7 @@ The relationship (wiring) among a set of compartments is not considered here.
 """
 
 import abc
+from typing import Callable
 
 import torch
 from spikingjelly.activation_based import base
@@ -96,7 +97,7 @@ class PassiveDendCompartment(BaseDendCompartment):
             step_mode (str, optional): "s" for single-step mode, and "m" for
                 multi-step mode. Defaults to "s".
         """
-        super().__init__(v_init = v_rest, step_mode = step_mode)
+        super().__init__(v_init=v_rest, step_mode=step_mode)
         self.tau = tau
         self.decay_input = decay_input
         self.v_rest = v_rest
@@ -126,4 +127,80 @@ class PassiveDendCompartment(BaseDendCompartment):
             self.v = PassiveDendCompartment.single_step_not_decay_input(
                 self.v, x, self.v_rest, self.tau
             )
+        return self.v
+
+
+class PAComponentDendCompartment(BaseDendCompartment):
+    """Dendritic compartment with passive and active voltage components.
+
+    The passive component acts just like a leaky integrator without a firing
+    mechanism, while the active voltage component is a function of the passive 
+    voltage component. The overall voltage is the sum of active and passive 
+    components: 
+        v[t] = va[t] + vp[t] = f_dca(vp[t]) + vp[t]
+
+    Attributes:
+        v (Union[float, torch.Tensor]): voltage of the dendritic compartment(s)
+            at the current time step.
+        va (Union[float, torch.Tensor]): the active component of the 
+            compartmental voltage at the current time step.
+        vp (Union[float, torch.Tensor]): the passive component of the 
+            compartmental voltage at the current time step.
+        step_mode (str): "s" for single-step mode, and "m" for multi-step mode
+        tau(float): the time constant for the passive component.
+        decay_input (bool, optional): whether the input to the compartments
+            should be divided by tau.
+        v_rest (float, optional): resting potential.
+        f_dca (Callable): the dendritic compartment activation function, mapping
+            the passive voltage component to the active component. The input and
+            output should have the same shape.
+    """
+
+    def __init__(
+        self, tau: float = 2., decay_input: bool = True, v_rest: float = 0., 
+        f_dca: Callable = lambda x: 0., step_mode: str = "s"
+    ):
+        """The constructor of PAComponentDendCompartment
+
+        Args:
+            tau (float, optional): the time constant. Defaults to 2.
+            decay_input (bool, optional): whether the input to the compartments
+                should be divided by tau. Defaults to True.
+            v_rest (float, optional): resting potential. Defaults to 0..
+            f_dc (Callable): the dendritic compartment activation function, 
+                mapping the passive voltage component to the active component. 
+                The input and output should have the same shape. Defaults to 
+                the constant zero.
+            step_mode (str, optional): "s" for single-step mode, and "m" for
+                multi-step mode. Defaults to "s".
+        """
+        super().__init__(v_rest, step_mode)
+        self.tau = tau
+        self.decay_input = decay_input
+        self.v_rest = v_rest
+        self.f_dca = f_dca
+        self.register_memory("va", 0.)
+        self.register_memory("vp", v_rest)
+
+    def v_float2tensor(self, x: torch.Tensor):
+        """If self.v | vp | va is a float, turn it into a tensor with x's shape.
+        """
+        if isinstance(self.v, float):
+            v_init = self.v
+            self.v = torch.full_like(x.data, v_init)
+        if isinstance(self.va, float):
+            v_init = self.va
+            self.va = torch.full_like(x.data, v_init)
+        if isinstance(self.vp, float):
+            v_init = self.vp
+            self.vp = torch.full_like(x.data, v_init)
+
+    def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.decay_input:
+            self.vp = self.vp + (x - (self.vp - self.v_rest)) / self.tau
+        else:
+            self.vp = self.vp + x - (self.vp - self.v_rest) / self.tau
+
+        self.va = self.f_dca(self.vp)
+        self.v = self.vp + self.va
         return self.v
