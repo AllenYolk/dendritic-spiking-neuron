@@ -29,18 +29,50 @@ class BaseSynapseConn(nn.Module, abc.ABC):
     optionally use a 0-1 mask to mimic sparse synaptic connections.
 
     Attributes:
+        wmin, wmax (torch.Tensor): the range of synaptic weights.
         step_mode (str): "s" for single-step mode, and "m" for multi-step mode.
     """
 
-    def __init__(self, step_mode: str = "s"):
+    def __init__(
+        self, 
+        wmin: Union[float, torch.Tensor] = -float("inf"), 
+        wmax: Union[float, torch.Tensor] = float("inf"), 
+        step_mode: str = "s",
+    ):
         """The constructor of BaseSynapseConn.
 
         Args:
+            wmin, wmax (Union[float, torch.Tensor]): the range of synaptic 
+                weights. These values must be broadcastable to the shape of 
+                the synaptic weight tensor.
             step_mode (str, optional): "s" for single-step mode, and "m" for 
                 multi-step mode. Defaults to "s".
         """
         super().__init__()
         self.step_mode = step_mode
+        self.wmin = wmin
+        self.wmax = wmax
+
+    @property
+    def wmin(self):
+        return self._wmin
+
+    @wmin.setter
+    def wmin(self, w):
+        self._wmin = torch.tensor(w)
+
+    @property
+    def wmax(self):
+        return self._wmax
+
+    @wmax.setter
+    def wmax(self, w):
+        self._wmax = torch.tensor(w)
+
+    def clamp_weights(self, clamp_bias: bool = False):
+        torch.clamp_(self.weight, min=self.wmin, max=self.wmax)
+        if clamp_bias and (self.bias is not None):
+            torch.clamp_(self.bias, min=self.wmin, max=self.wmax)
 
     @abc.abstractmethod
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -76,7 +108,10 @@ class LinearSynapseConn(nn.Linear, BaseSynapseConn):
 
     def __init__(
         self, in_features: int, out_features: int, bias: bool = False,
-        device = None, dtype = None, step_mode: str = "s"
+        device = None, dtype = None, 
+        wmin: Union[float, torch.Tensor] = -float("inf"), 
+        wmax: Union[float, torch.Tensor] = float("inf"), 
+        step_mode: str = "s"
     ):
         """The constructor of LinearSynapseConn.
 
@@ -86,12 +121,16 @@ class LinearSynapseConn(nn.Linear, BaseSynapseConn):
             bias (bool, optional): Defaults to False.
             device (_type_, optional): Defaults to None.
             dtype (_type_, optional): Defaults to None.
+            wmin, wmax (Union[float, torch.Tensor]): the range of synaptic 
+                weights. These values must be broadcastable to the shape of 
+                the synaptic weight tensor.
             step_mode (str, optional): "s" for single-step mode, and "m" for
                 multi-step mode. Defaults to "s".
         """
         # print(self.__class__.__mro__)
         super().__init__(in_features, out_features, bias, device, dtype)
         self.step_mode = step_mode
+        self.wmin, self.wmax = wmin, wmax
 
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
         return super().forwrad(x, self.weight, self.bias)
@@ -119,6 +158,8 @@ class MaskedLinearSynapseConn(BaseSynapseConn):
     def __init__(
         self, in_features: int, out_features: int, bias: bool = False,
         init_sparsity: float = 0.75, device = None, dtype = None,
+        wmin: Union[float, torch.Tensor] = -float("inf"), 
+        wmax: Union[float, torch.Tensor] = float("inf"), 
         step_mode: str = "s"
     ):
         """The constructor of MaskedLinearSynapseConn.
@@ -131,10 +172,13 @@ class MaskedLinearSynapseConn(BaseSynapseConn):
                 it is initialized [higher -> sparser]. Defaults to 0.75 .
             device (optional): Defaults to None.
             dtype (optional): Defaults to None.
+            wmin, wmax (Union[float, torch.Tensor]): the range of synaptic 
+                weights. These values must be broadcastable to the shape of 
+                the synaptic weight tensor.
             step_mode (str, optional): "s" for single-step mode, and "m" for
                 multi-step mode. Defaults to "s".
         """
-        super().__init__(step_mode = step_mode)
+        super().__init__(wmin=wmin, wmax=wmax, step_mode=step_mode)
         factory_kwargs = {"device": device, "dtype": dtype}
         self.in_features = in_features
         self.out_features = out_features
@@ -189,7 +233,10 @@ class Conv2dSynapseConn(nn.Conv2d, BaseSynapseConn):
         padding: Union[ttypes._size_2_t, str] = 0,
         dilation: ttypes._size_2_t = 1, groups: int = 1,
         bias: bool = False, padding_mode: str = "zeros", 
-        device = None, dtype = None, step_mode: str = "s"
+        device = None, dtype = None, 
+        wmin: Union[float, torch.Tensor] = -float("inf"), 
+        wmax: Union[float, torch.Tensor] = float("inf"), 
+        step_mode: str = "s"
     ):
         """The constructor of Conv2dSynapseConn.
 
@@ -205,6 +252,9 @@ class Conv2dSynapseConn(nn.Conv2d, BaseSynapseConn):
             padding_mode (str, optional): Defaults to "zeros".
             device (_type_, optional): Defaults to None.
             dtype (_type_, optional): Defaults to None.
+            wmin, wmax (Union[float, torch.Tensor]): the range of synaptic 
+                weights. These values must be broadcastable to the shape of 
+                the synaptic weight tensor.
             step_mode (str, optional): Defaults to "s".
         """
         # print(self.__class__.__mro__)
@@ -214,6 +264,7 @@ class Conv2dSynapseConn(nn.Conv2d, BaseSynapseConn):
         )
         # print(self.step_mode)
         self.step_mode = step_mode
+        self.wmin, self.wmax = wmin, wmax
 
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         return functional.unfold_forward_fold(x_seq, super().forward)
