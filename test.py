@@ -343,15 +343,15 @@ def stochastic_test(
 def rate_plot_test():
     print("====="*20)
     print("rate plot test:")
-    _, ax = plt.subplots()
+    f, ax = plt.subplots()
     stf_exp = stochastic_firing.ExpStochasticFiring(
         f_thres = 1., beta = 5., theta = 1.
     )
     stf_logistic = stochastic_firing.LogisticStochasticFiring(
-        f_thres = 1., beta = 5., theta = 1.
+        f_thres = 0.95, beta = 5., theta = 1.
     )
-    stf_exp.plot_firing_rate(ax = ax)
-    stf_logistic.plot_firing_rate(ax = ax)
+    stf_exp.plot_firing_rate(f=f, ax=ax)
+    stf_logistic.plot_firing_rate(f=f, ax=ax)
     ax.vlines(x = [1.], ymin = 0, ymax = 5., linestyles = "dotted", colors = "r")
     plt.show()
 
@@ -513,10 +513,12 @@ def mnist_fc_net(neuron_type, firing_type):
         return torch.exp(-0.5 * ((x)**2)) / (2 * torch.pi)**0.5 * 2
     def gaussian_dca(x):
         return torch.exp(-0.5 * ((x-0.5)**2)) / (2 * torch.pi)**0.5 * 2.5
+
     if firing_type == "deterministic":
         sur = surrogate.Sigmoid()
     elif firing_type == "stochastic":
-        sur = stochastic_firing.LogisticStochasticFiring(f_thres=0.8, beta=3)
+        sur = stochastic_firing.LogisticStochasticFiring(f_thres=0.95, beta=5)
+
     if neuron_type == "VDiffForward":
         n1 = neuron.VDiffForwardDendNeuron(
             dend=dendrite.SegregatedDend(

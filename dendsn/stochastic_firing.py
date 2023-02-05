@@ -68,19 +68,23 @@ class BaseStochasticFiring(nn.Module, abc.ABC):
         else:
             return self.rate_function(v)
 
-    def plot_firing_rate(self, ax = None):
+    def plot_firing_rate(self, f=None, ax=None):
         """Plot the firing rate function.
 
         Args:
-            ax (optional): a matplotlib axes to place the plot on. 
-                Defaults to None.
+            f, ax (optional): the matplotlib figure and axes to place the 
+                picture. If one of them is None, a new pair of f, ax will be 
+                created inside the function.
+        Returns:
+            f, ax: the matplotlib figure and axes that contain the picture.
         """
         v = torch.arange(-1.25, 1.25, 0.025)
         r = self.rate_function(v)
-        if ax is None:
-            _, ax = plt.subplots()
+        if (f is None) or (ax is None):
+            f, ax = plt.subplots()
         ax.plot(v, r)
         ax.set(xlabel = "v", ylabel = "firing_rate")
+        return f, ax
 
 
 @torch.jit.script
