@@ -1,9 +1,10 @@
 """Synaptic connection models.
 
-This module defines several wrappers for nn.Linear, nn.Conv2d and other commonly
-used weight layers so as to:
+This module defines several wrappers for  commonly used weight layers like 
+Linear and Conv2d so as to 
 1. support both single-step and multi-step mode.
 2. enable 0-1 masks to mimic sparse synaptic connections.
+3. enable weight clamping.
 """
 
 import abc
@@ -25,7 +26,7 @@ class BaseSynapseConn(nn.Module, abc.ABC):
 
     A synaptic connection module is a wrapper for weight layers in Pytorch. 
     Subclasses of BaseSynapseConn must support single-step and multi-step mode
-    by implementing singe_step_forward() and multi_step_forward(), and
+    by implementing singe_step_forward() and multi_step_forward(), and 
     optionally use a 0-1 mask to mimic sparse synaptic connections.
 
     Attributes:
@@ -100,7 +101,7 @@ class BaseSynapseConn(nn.Module, abc.ABC):
 
 
 class LinearSynapseConn(nn.Linear, BaseSynapseConn):
-    """Wrapped nn.Linear that supports single-step and multi-step mode.
+    """Wrapped nn.Linear.
 
     Attributes:
         See base class: nn.Linear, BaseSynapseConn.
@@ -140,7 +141,7 @@ class LinearSynapseConn(nn.Linear, BaseSynapseConn):
 
 
 class MaskedLinearSynapseConn(BaseSynapseConn):
-    """Reimplemented nn.Linear with a sparsity mask supporting both step mode.
+    """Reimplemented nn.Linear with a sparsity mask.
 
     The source code of torch.nn.Linear is modified to incorporate a 0-1 sparsity
     mask and support both single-step and multi-step mode. The sparsity mask is
@@ -220,8 +221,59 @@ class MaskedLinearSynapseConn(BaseSynapseConn):
         return F.linear(x_seq, self.weight * self.weight_mask, self.bias)
 
 
+class Conv1dSynapseConn(nn.Conv1d, BaseSynapseConn):
+    """Wrapped nn.Conv1d.
+
+    Attributes:
+        See base class: nn.Conv1d, BaseSynapseConn.
+    """
+
+    def __init__(
+        self, in_channels: int, out_channels: int, 
+        kernel_size: ttypes._size_1_t, stride: ttypes._size_1_t = 1, 
+        padding: Union[ttypes._size_1_t, str]=0, 
+        dilation: ttypes._size_1_t = 1, groups: int = 1, 
+        bias: bool = True, padding_mode: str = 'zeros', 
+        device = None, dtype = None,
+        wmin: Union[float, torch.Tensor] = -float("inf"), 
+        wmax: Union[float, torch.Tensor] = float("inf"), 
+        step_mode: str = "s"
+    ):
+        """The constructor of Conv2dSynapseConn.
+
+        Args:
+            in_channels (int)
+            out_channels (int)
+            kernel_size (ttypes._size_1_t)
+            stride (ttypes._size_1_t, optional): Defaults to 1.
+            padding (Union[ttypes._size_1_t, str], optional): Defaults to 0.
+            dilation (ttypes._size_1_t, optional): Defaults to 1.
+            groups (int, optional): Defaults to 1.
+            bias (bool, optional): Defaults to False.
+            padding_mode (str, optional): Defaults to "zeros".
+            device (optional): Defaults to None.
+            dtype (optional): Defaults to None.
+            wmin, wmax (Union[float, torch.Tensor]): the range of synaptic 
+                weights. These values must be broadcastable to the shape of 
+                the synaptic weight tensor.
+            step_mode (str, optional): Defaults to "s".
+        """
+        super().__init__(
+            in_channels, out_channels, kernel_size, stride, padding, dilation,
+            groups, bias, padding_mode, device, dtype
+        )
+        self.step_mode = step_mode
+        self.wmin, self.wmax = wmin, wmax
+
+    def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
+        return super().forward(x)
+
+    def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
+        return functional.unfold_forward_fold(x_seq, super().forward)
+
+
 class Conv2dSynapseConn(nn.Conv2d, BaseSynapseConn):
-    """Wrapped nn.Conv2d that supports single-step and multi-step mode.
+    """Wrapped nn.Conv2d.
 
     Attributes:
         See base class: nn.Conv2d, BaseSynapseConn.
@@ -250,8 +302,8 @@ class Conv2dSynapseConn(nn.Conv2d, BaseSynapseConn):
             groups (int, optional): Defaults to 1.
             bias (bool, optional): Defaults to False.
             padding_mode (str, optional): Defaults to "zeros".
-            device (_type_, optional): Defaults to None.
-            dtype (_type_, optional): Defaults to None.
+            device (optional): Defaults to None.
+            dtype (optional): Defaults to None.
             wmin, wmax (Union[float, torch.Tensor]): the range of synaptic 
                 weights. These values must be broadcastable to the shape of 
                 the synaptic weight tensor.
@@ -262,12 +314,62 @@ class Conv2dSynapseConn(nn.Conv2d, BaseSynapseConn):
             in_channels, out_channels, kernel_size, stride, padding, dilation,
             groups, bias, padding_mode, device, dtype
         )
-        # print(self.step_mode)
         self.step_mode = step_mode
         self.wmin, self.wmax = wmin, wmax
+
+    def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
+        return super().forward(x)
 
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         return functional.unfold_forward_fold(x_seq, super().forward)
 
+
+class Conv3dSynapseConn(nn.Conv3d, BaseSynapseConn):
+    """Wrapped nn.Conv3d.
+
+    Attributes:
+        See base class: nn.Conv3d, BaseSynapseConn.
+    """
+
+    def __init__(
+        self, in_channels: int, out_channels: int,
+        kernel_size: ttypes._size_3_t, stride: ttypes._size_3_t = 1,
+        padding: Union[str, ttypes._size_3_t] = 0,
+        dilation: ttypes._size_3_t = 1, groups: int = 1,
+        bias: bool = True, padding_mode: str = 'zeros',
+        device = None, dtype = None,
+        wmin: Union[float, torch.Tensor] = -float("inf"), 
+        wmax: Union[float, torch.Tensor] = float("inf"), 
+        step_mode: str = "s"
+    ):
+        """The constructor of Conv3dSynapseConn.
+
+        Args:
+            in_channels (int)
+            out_channels (int)
+            kernel_size (ttypes._size32_t)
+            stride (ttypes._size_3_t, optional): Defaults to 1.
+            padding (Union[ttypes._size_3_t, str], optional): Defaults to 0.
+            dilation (ttypes._size_3_t, optional): Defaults to 1.
+            groups (int, optional): Defaults to 1.
+            bias (bool, optional): Defaults to False.
+            padding_mode (str, optional): Defaults to "zeros".
+            device (optional): Defaults to None.
+            dtype (optional): Defaults to None.
+            wmin, wmax (Union[float, torch.Tensor]): the range of synaptic 
+                weights. These values must be broadcastable to the shape of 
+                the synaptic weight tensor.
+            step_mode (str, optional): Defaults to "s".
+        """
+        super().__init__(
+            in_channels, out_channels, kernel_size, stride, padding, dilation,
+            groups, bias, padding_mode, device, dtype
+        )
+        self.step_mode = step_mode
+        self.wmin, self.wmax = wmin, wmax
+
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
         return super().forward(x)
+
+    def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
+        return functional.unfold_forward_fold(x_seq, super().forward)
