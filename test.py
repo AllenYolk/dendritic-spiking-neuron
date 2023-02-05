@@ -508,11 +508,15 @@ def conv_test(
     plt.show()
 
 
-def mnist_fc_net(neuron_type):
+def mnist_fc_net(neuron_type, firing_type):
     def gaussian(x):
         return torch.exp(-0.5 * ((x)**2)) / (2 * torch.pi)**0.5 * 2
     def gaussian_dca(x):
         return torch.exp(-0.5 * ((x-0.5)**2)) / (2 * torch.pi)**0.5 * 2.5
+    if firing_type == "deterministic":
+        sur = surrogate.Sigmoid()
+    elif firing_type == "stochastic":
+        sur = stochastic_firing.LogisticStochasticFiring(f_thres=0.8, beta=3)
     if neuron_type == "VDiffForward":
         n1 = neuron.VDiffForwardDendNeuron(
             dend=dendrite.SegregatedDend(
@@ -521,7 +525,7 @@ def mnist_fc_net(neuron_type):
                 ),
                 wiring=wiring.SegregatedDendWiring(n_compartment=1)
             ),
-            soma=sj_neuron.LIFNode(),
+            soma=sj_neuron.LIFNode(surrogate_function=sur),
             soma_shape=[512],
             step_mode="m"
         )
@@ -532,7 +536,7 @@ def mnist_fc_net(neuron_type):
                 ),
                 wiring=wiring.SegregatedDendWiring(n_compartment=1)
             ),
-            soma = sj_neuron.LIFNode(),
+            soma = sj_neuron.LIFNode(surrogate_function=sur),
             soma_shape = [128],
             step_mode = "m"
         )
@@ -544,7 +548,7 @@ def mnist_fc_net(neuron_type):
                 ),
                 wiring=wiring.SegregatedDendWiring(n_compartment=1),
             ),
-            soma=sj_neuron.LIFNode(),
+            soma=sj_neuron.LIFNode(surrogate_function=sur),
             soma_shape=[512], f_da=gaussian,
             forward_strength_learnable=True,
             step_mode="m"
@@ -556,7 +560,7 @@ def mnist_fc_net(neuron_type):
                 ),
                 wiring=wiring.SegregatedDendWiring(n_compartment=1),
             ),
-            soma=sj_neuron.LIFNode(),
+            soma=sj_neuron.LIFNode(surrogate_function=sur),
             soma_shape=[128], f_da=gaussian,
             forward_strength_learnable=True,
             step_mode="m"
@@ -569,7 +573,7 @@ def mnist_fc_net(neuron_type):
                 ),
                 wiring=wiring.SegregatedDendWiring(n_compartment=1)
             ),
-            soma=sj_neuron.LIFNode(),
+            soma=sj_neuron.LIFNode(surrogate_function=sur),
             soma_shape=[512],
             step_mode="m"
         )
@@ -580,7 +584,7 @@ def mnist_fc_net(neuron_type):
                 ),
                 wiring=wiring.SegregatedDendWiring(n_compartment=1)
             ),
-            soma = sj_neuron.LIFNode(),
+            soma = sj_neuron.LIFNode(surrogate_function=sur),
             soma_shape = [128],
             step_mode = "m"
         )
@@ -592,7 +596,7 @@ def mnist_fc_net(neuron_type):
                 ),
                 wiring=wiring.SegregatedDendWiring(n_compartment=1)
             ),
-            soma=sj_neuron.LIFNode(),
+            soma=sj_neuron.LIFNode(surrogate_function=sur),
             soma_shape=[512], f_da=lambda x: x,
             step_mode="m"
         )
@@ -603,7 +607,7 @@ def mnist_fc_net(neuron_type):
                 ),
                 wiring=wiring.SegregatedDendWiring(n_compartment=1)
             ),
-            soma = sj_neuron.LIFNode(),
+            soma = sj_neuron.LIFNode(surrogate_function=sur),
             soma_shape = [128], f_da=lambda x: x,
             step_mode = "m"
         )
@@ -620,8 +624,8 @@ def mnist_fc_net(neuron_type):
     return net
 
 
-def fmnist_test(neuron_type, data_dir, log_dir, epochs, T, silent):
-    net = mnist_fc_net(neuron_type)
+def fmnist_test(neuron_type, firing_type, data_dir, log_dir, epochs, T, silent):
+    net = mnist_fc_net(neuron_type, firing_type)
     s = reunn.NetStats(
         net=net, input_shape=[T, 1, 1, 28, 28], backend="spikingjelly"
     )
@@ -643,12 +647,17 @@ def fmnist_test(neuron_type, data_dir, log_dir, epochs, T, silent):
     )
     p = reunn.SupervisedClassificationTaskPipeline(
         backend="spikingjelly", net=net, log_dir=log_dir, T=T,
+        hparam={
+            "neuron_type": neuron_type, "firing_type": firing_type, 
+            "T": T, "epochs": epochs
+        },
         criterion=nn.CrossEntropyLoss(),
         optimizer=optim.Adam(params=net.parameters(),lr=1e-4),
         train_loader=train_loader, validation_loader=validation_loader
     )
     p.train(
-        epochs=epochs, validation=True, silent=silent, rec_runtime_msg=False
+        epochs=epochs, validation=True, silent=silent, 
+        rec_runtime_msg=True, rec_hparam_msg=True
     )
     for k, v in net.named_parameters():
         if k[-3:] == "gth":
@@ -715,6 +724,7 @@ def continual_learning_test(data_dir, log_dir, epochs, T, silent, n_subtask):
         # train on subtask i
         p = reunn.SupervisedClassificationTaskPipeline(
             net=net, log_dir=log_dir, backend="spikingjelly", T=T,
+            hparam=None,
             criterion=nn.CrossEntropyLoss(),
             optimizer=optim.Adam(net.parameters(), lr=1e-3),
             train_loader=train_loader, test_loader = test_loader
@@ -753,6 +763,9 @@ def main():
     parser.add_argument(
         "-nt", "--neuron_type", type=str, default="VActivationForward"
     )
+    parser.add_argument(
+        "-ft", "--firing_type", type=str, default="deterministic"
+    )
     args = parser.parse_args()
 
     if args.mode == "dend_compartment":
@@ -775,7 +788,8 @@ def main():
         conv_test()
     elif args.mode == "fmnist":
         fmnist_test(
-            args.neuron_type, args.data_dir, args.log_dir, 
+            args.neuron_type, args.firing_type, 
+            args.data_dir, args.log_dir, 
             args.epochs, args.T, args.silent
         )
     elif args.mode == "continual_learning":
