@@ -20,7 +20,9 @@ from dendsn.model import dend_compartment, wiring, dendrite
 from dendsn.model import synapse
 from dendsn.model import neuron
 from dendsn import stochastic_firing
+from dendsn.learning import stdp
 import reunn
+import reunn.implementation
 import cltask
 
 
@@ -233,7 +235,7 @@ def synapse_test(
     print("====="*20)
     print("synapse model test - MaskedLinear:")
     x_seq = torch.randn(size = [T, B, in_features])
-    syn = synapse.MaskedLinearIdenditySynapse(
+    syn = synapse.MaskedLinearIdentitySynapse(
         in_features, out_features, bias = True, step_mode = "m"
     )
     y_seq = syn(x_seq)
@@ -510,7 +512,7 @@ def conv_test(
 
 def mnist_fc_net(neuron_type, firing_type):
     def gaussian(x):
-        return torch.exp(-0.5 * ((x)**2)) / (2 * torch.pi)**0.5 * 2
+        return torch.exp(-0.5 * ((x)**2)) / (2 * torch.pi)**0.5 * 4
     def gaussian_dca(x):
         return torch.exp(-0.5 * ((x-0.5)**2)) / (2 * torch.pi)**0.5 * 2.5
 
@@ -666,39 +668,11 @@ def fmnist_test(neuron_type, firing_type, data_dir, log_dir, epochs, T, silent):
             print(f"{k}={v}")
 
 
-
-def continual_learning_test(data_dir, log_dir, epochs, T, silent, n_subtask):
-    net = nn.Sequential(
-        layer.Flatten(),
-        layer.Linear(784, 512),
-        #sj_neuron.IFNode(),
-        neuron.VDiffForwardDendNeuron(
-            dend=dendrite.SegregatedDend(
-                compartment=dend_compartment.PassiveDendCompartment(
-                    decay_input=False
-                ),
-                wiring=wiring.SegregatedDendWiring(n_compartment=1)
-            ),
-            soma=sj_neuron.LIFNode(),
-            soma_shape=[512],
-            step_mode="m"
-        ),
-        layer.Linear(512, 128),
-        #sj_neuron.IFNode(),
-        neuron.VDiffForwardDendNeuron(
-            dend = dendrite.SegregatedDend(
-                compartment=dend_compartment.PassiveDendCompartment(
-                    decay_input=False
-                ),
-                wiring=wiring.SegregatedDendWiring(n_compartment=1)
-            ),
-            soma = sj_neuron.LIFNode(),
-            soma_shape = [128],
-            step_mode = "m"
-        ),
-        layer.Linear(128, 10),
-    )
-    functional.set_step_mode(net, "m")
+def continual_learning_test(
+        neuron_type, firing_type, 
+        data_dir, log_dir, epochs, T, silent, n_subtask
+    ):
+    net = mnist_fc_net(neuron_type, firing_type)
     net = cltask.PermutationWrappedNetwork(net, apply_permutation=True)
 
     train_loader = data.DataLoader(
@@ -754,6 +728,63 @@ def continual_learning_test(data_dir, log_dir, epochs, T, silent, n_subtask):
     plt.show()
 
 
+def stdp_test(neuron_type, firing_type, data_dir, log_dir, epochs, T):
+    train_loader = data.DataLoader(
+        dataset=datasets.MNIST(
+            root=data_dir, download=True, train=True,
+            transform=transforms.ToTensor()
+        ),
+        batch_size=64, shuffle=False, drop_last=False
+    )
+    test_loader = data.DataLoader(
+        dataset=datasets.MNIST(
+            root=data_dir, download=True, train=False, 
+            transform=transforms.ToTensor()
+        ),
+        batch_size=128, shuffle=False, drop_last=False
+    )
+
+    net = mnist_fc_net(neuron_type, firing_type)
+    target_synapse_type = (nn.Linear, )
+    stdp_learners = []
+    stdp_learn_params = []
+    for i in range(len(net)):
+        if isinstance(net[i], target_synapse_type) and (i < len(net)-1):
+            stdp_learners.append(stdp.STDPLearner(
+                syn=net[i], dsn=net[i+1], tau_pre=3., tau_post=3.,
+                step_mode="m"
+            ))
+            for p in net[i].parameters():
+                stdp_learn_params.append(p)
+    optimizer = optim.SGD(params=stdp_learn_params, lr=1)
+
+    w0 = net[1].weight.clone()
+    net.train()
+    with torch.no_grad():
+        for epoch in range(epochs):
+            train_sample_cnt, acc_cnt = 0, 0
+            for x, y in tqdm(train_loader):
+                x = x.repeat(T, 1, 1, 1, 1)
+                pred = net(x)
+                pred = pred.sum(dim=0)
+
+                optimizer.zero_grad()
+                for learner in stdp_learners:
+                    learner.step()
+                optimizer.step()
+
+                acc_cnt += (pred.argmax(dim=1) == y).sum().item()
+                train_sample_cnt += y.shape[0]
+
+                functional.reset_net(net)
+                for learner in stdp_learners:
+                    learner.reset()
+
+            w1 = net[1].weight
+            print(f"train_acc={acc_cnt/train_sample_cnt}, shift={(w1-w0).mean()}")
+        print((net[1].weight-w0)[0])
+
+
 def main():
     parser = argparse.ArgumentParser(description = "dendsj test")
     parser.add_argument("--data_dir", type=str, default="../datasets/")
@@ -796,8 +827,14 @@ def main():
         )
     elif args.mode == "continual_learning":
         continual_learning_test(
+            args.neuron_type, args.firing_type,
             args.data_dir, args.log_dir, args.epochs, args.T, args.silent, 
-            n_subtask=20
+            n_subtask=2
+        )
+    elif args.mode == "stdp":
+        stdp_test(
+            args.neuron_type, args.firing_type,
+            args.data_dir, args.log_dir, args.epochs, args.T
         )
     elif args.mode == "all":
         dend_compartment_test()

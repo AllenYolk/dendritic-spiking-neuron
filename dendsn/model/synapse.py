@@ -69,7 +69,7 @@ class BaseSynapse(nn.Module):
             )
 
 
-class LinearIdenditySynapse(BaseSynapse):
+class LinearIdentitySynapse(BaseSynapse):
     """Synaptic model combining LinearSynapseConn with IdentitySynapseFilter.
 
     Attributes:
@@ -102,7 +102,7 @@ class LinearIdenditySynapse(BaseSynapse):
         )
 
 
-class MaskedLinearIdenditySynapse(BaseSynapse):
+class MaskedLinearIdentitySynapse(BaseSynapse):
     """Synapse combining MaskedLinearSynapseConn and IdentitySynapseFilter.
 
     Attributes:

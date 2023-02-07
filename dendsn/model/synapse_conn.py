@@ -134,10 +134,10 @@ class LinearSynapseConn(nn.Linear, BaseSynapseConn):
         self.wmin, self.wmax = wmin, wmax
 
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
-        return super().forwrad(x, self.weight, self.bias)
+        return super().forward(x)
 
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
-        return super().forward(x_seq, self.weight, self.bias)
+        return super().forward(x_seq)
 
 
 class MaskedLinearSynapseConn(BaseSynapseConn):
