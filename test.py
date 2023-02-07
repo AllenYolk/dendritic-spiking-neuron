@@ -20,7 +20,7 @@ from dendsn.model import dend_compartment, wiring, dendrite
 from dendsn.model import synapse
 from dendsn.model import neuron
 from dendsn import stochastic_firing
-from dendsn.learning import stdp
+from dendsn.learning import stdp, semi_stdp
 import reunn
 import reunn.implementation
 import cltask
@@ -512,7 +512,7 @@ def conv_test(
 
 def mnist_fc_net(neuron_type, firing_type):
     def gaussian(x):
-        return torch.exp(-0.5 * ((x)**2)) / (2 * torch.pi)**0.5 * 4
+        return torch.exp(-0.5 * ((x)**2)) / (2 * torch.pi)**0.5 * 3.5
     def gaussian_dca(x):
         return torch.exp(-0.5 * ((x-0.5)**2)) / (2 * torch.pi)**0.5 * 2.5
 
@@ -744,21 +744,32 @@ def stdp_test(neuron_type, firing_type, data_dir, log_dir, epochs, T):
         batch_size=128, shuffle=False, drop_last=False
     )
 
+    def f_w_pre_post(w):
+        return 0.75-w
+    def f_trace_pre(t):
+        return t-0.25
+
     net = mnist_fc_net(neuron_type, firing_type)
     target_synapse_type = (nn.Linear, )
     stdp_learners = []
     stdp_learn_params = []
     for i in range(len(net)):
         if isinstance(net[i], target_synapse_type) and (i < len(net)-1):
-            stdp_learners.append(stdp.STDPLearner(
-                syn=net[i], dsn=net[i+1], tau_pre=3., tau_post=3.,
+            stdp_learners.append(semi_stdp.SemiSTDPLearner(
+                syn=net[i], dsn=net[i+1], tau_pre=3.,
+                f_w_pre_post=f_w_pre_post,
+                f_trace_pre=f_trace_pre,
                 step_mode="m"
             ))
             for p in net[i].parameters():
                 stdp_learn_params.append(p)
-    optimizer = optim.SGD(params=stdp_learn_params, lr=1)
+    optimizer = optim.SGD(params=stdp_learn_params, lr=1e-2)
 
     w0 = net[1].weight.clone()
+    f, ax = plt.subplots()
+    im = ax.imshow(w0[0].view([28, 28]).detach())
+    f.colorbar(im, ax=ax)
+    plt.show()
     net.train()
     with torch.no_grad():
         for epoch in range(epochs):
@@ -782,6 +793,10 @@ def stdp_test(neuron_type, firing_type, data_dir, log_dir, epochs, T):
 
             w1 = net[1].weight
             print(f"train_acc={acc_cnt/train_sample_cnt}, shift={(w1-w0).mean()}")
+            f, ax = plt.subplots()
+            im = ax.imshow(w1[0].view([28, 28]))
+            f.colorbar(im, ax=ax)
+            plt.show()
         print((net[1].weight-w0)[0])
 
 
