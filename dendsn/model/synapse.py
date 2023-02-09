@@ -83,7 +83,8 @@ class LinearIdentitySynapse(BaseSynapse):
 
     def __init__(
         self, in_features: int, out_features: int, bias: bool = False,
-        device = None, dtype = None, step_mode: str = "s"
+        device = None, dtype = None, wmin = -float("inf"), wmax = float("inf"),
+        step_mode: str = "s"
     ):
         """The constructor of LinearIdentitySynapse.
 
@@ -92,14 +93,18 @@ class LinearIdentitySynapse(BaseSynapse):
             out_features (int): the argument for LinearSynapseConn.
             bias (bool, optional): the argument for LinearSynapseConn. Defaults
                 to None.
-            device (str, optional): Defaults to None.
-            dtype (str, optional): Defaults to None.
+            device (optional): Defaults to None.
+            dtype (optional): Defaults to None.
+            wmin (Union[float, torch.Tensor], optional): the argument for 
+                LinearSynapseConn. Defaults to -inf.
+            wmax (Union[float, torch.Tensor], optional): the argument for 
+                LinearSynapseConn. Defaults to inf.
             step_mode (str, optional): "s" for single-step mode, and "m" for 
                 multi-step mode. Defaults to "s".
         """
         super().__init__(
             conn = synapse_conn.LinearSynapseConn(
-                in_features, out_features, bias, device, dtype
+                in_features, out_features, bias, device, dtype, wmin, wmax
             ),
             filter = synapse_filter.IdentitySynapseFilter(),
             step_mode = step_mode
@@ -117,7 +122,7 @@ class MaskedLinearIdentitySynapse(BaseSynapse):
     def __init__(
         self, in_features: int, out_features: int, bias: bool = False,
         init_sparsity: float = 0.75, device = None, dtype = None,
-        step_mode: str = "s"
+        wmin = -float("inf"), wmax = float("inf"), step_mode: str = "s"
     ):
         """The constructor of MaskedLinearIdentitySynapse.
 
@@ -129,14 +134,73 @@ class MaskedLinearIdentitySynapse(BaseSynapse):
             init_sparsity (float, optional): the argument for 
                 MaskedLinearSynapseConn. The sparsity of the 0-1 mask when it is
                 initialized [higher -> sparser]. Defaults to 0.75.
-            device (str, optional): Defaults to None.
-            dtype (str, optional): Defaults to None.
+            device (optional): Defaults to None.
+            dtype (optional): Defaults to None.
+            wmin (Union[float, torch.Tensor], optional): the argument for 
+                MaskedLinearSynapseConn. Defaults to -inf.
+            wmax (Union[float, torch.Tensor], optional): the argument for 
+                MaskedLinearSynapseConn. Defaults to inf.
             step_mode (str, optional): "s" for single-step mode, and "m" for
                 multi-step mode. Defaults to "s".
         """
         super().__init__(
             conn = synapse_conn.MaskedLinearSynapseConn(
-                in_features, out_features, bias, init_sparsity, device, dtype
+                in_features, out_features, bias, init_sparsity, device, dtype,
+                wmin, wmax
+            ),
+            filter = synapse_filter.IdentitySynapseFilter(),
+            step_mode = step_mode
+        )
+
+
+class Conv1dIdentitySynapse(BaseSynapse):
+    """Synapse combining Conv1dSynapseConn and IdentitySynapseFilter.
+
+    Attributes:
+        See base class: BaseSynapse.
+        Also, see Conv1dSynapseConn and IdentitySynapseFilter.
+    """
+
+    def __init__(
+        self, in_channels: int, out_channels: int,
+        kernel_size: ttypes._size_1_t, stride: ttypes._size_1_t = 1,
+        padding: Union[ttypes._size_1_t, str] = 0,
+        dilation: ttypes._size_1_t = 1, groups: int = 1,
+        bias: bool = False, padding_mode: str = "zeros", 
+        device = None, dtype = None, wmin = -float("inf"), wmax = float("inf"),
+        step_mode: str = "s"
+    ):
+        """The constructor of Conv1dIdentitySynapse.
+
+        Args:
+            in_channels (int): the argument for Conv1dSynapseConn.
+            out_channels (int): the argument for Conv1dSynapseConn.
+            kernel_size (ttypes._size_1_t): the argument for Conv1dSynapseConn.
+            stride (ttypes._size_1_t, optional): the argument for 
+                Conv1dSynapseConn. Defaults to 1.
+            padding (Union[ttypes._size_1_t, str], optional): the argument for 
+                Conv1dSynapseConn.. Defaults to 0.
+            dilation (ttypes._size_1_t, optional): the argument for
+                Conv1dSynapseConn. Defaults to 1.
+            groups (int, optional): the argument for Conv1dSynapseConn. 
+                Defaults to 1.
+            bias (bool, optional): the argument for Conv1dSynapseConn. Defaults 
+                to False.
+            padding_mode (str, optional): the argument for Conv1dSynapseConn.
+                Defaults to "zeros".
+            device (optional): Defaults to None.
+            dtype (optional): Defaults to None.
+            wmin (Union[float, torch.Tensor], optional): the argument for 
+                Conv1dSynapseConn. Defaults to -inf.
+            wmax (Union[float, torch.Tensor], optional): the argument for 
+                Conv1dSynapseConn. Defaults to inf.
+            step_mode (str, optional): "s" for single-step mode, and "m" for
+                multi-step mode. Defaults to "s".
+        """
+        super().__init__(
+            conn = synapse_conn.Conv1dSynapseConn(
+                in_channels, out_channels, kernel_size, stride, padding, 
+                dilation, groups, bias, padding_mode, device, dtype, wmin, wmax
             ),
             filter = synapse_filter.IdentitySynapseFilter(),
             step_mode = step_mode
@@ -157,7 +221,8 @@ class Conv2dIdentitySynapse(BaseSynapse):
         padding: Union[ttypes._size_2_t, str] = 0,
         dilation: ttypes._size_2_t = 1, groups: int = 1,
         bias: bool = False, padding_mode: str = "zeros", 
-        device = None, dtype = None, step_mode: str = "s"
+        device = None, dtype = None, wmin = -float("inf"), wmax = float("inf"),
+        step_mode: str = "s"
     ):
         """The constructor of Conv2dIdentitySynapse.
 
@@ -177,15 +242,73 @@ class Conv2dIdentitySynapse(BaseSynapse):
                 to False.
             padding_mode (str, optional): the argument for Conv2dSynapseConn.
                 Defaults to "zeros".
-            device (_type_, optional): Defaults to None.
-            dtype (_type_, optional): Defaults to None.
+            device (optional): Defaults to None.
+            dtype (optional): Defaults to None.
+            wmin (Union[float, torch.Tensor], optional): the argument for 
+                Conv2dSynapseConn. Defaults to -inf.
+            wmax (Union[float, torch.Tensor], optional): the argument for 
+                Conv2dSynapseConn. Defaults to inf.
             step_mode (str, optional): "s" for single-step mode, and "m" for
                 multi-step mode. Defaults to "s".
         """
         super().__init__(
             conn = synapse_conn.Conv2dSynapseConn(
                 in_channels, out_channels, kernel_size, stride, padding, 
-                dilation, groups, bias, padding_mode, device, dtype,
+                dilation, groups, bias, padding_mode, device, dtype, wmin, wmax
+            ),
+            filter = synapse_filter.IdentitySynapseFilter(),
+            step_mode = step_mode
+        )
+
+
+class Conv3dIdentitySynapse(BaseSynapse):
+    """Synapse combining Conv3dSynapseConn and IdentitySynapseFilter.
+
+    Attributes:
+        See base class: BaseSynapse.
+        Also, see Conv3dSynapseConn and IdentitySynapseFilter.
+    """
+
+    def __init__(
+        self, in_channels: int, out_channels: int,
+        kernel_size: ttypes._size_3_t, stride: ttypes._size_3_t = 1,
+        padding: Union[ttypes._size_3_t, str] = 0,
+        dilation: ttypes._size_3_t = 1, groups: int = 1,
+        bias: bool = False, padding_mode: str = "zeros", 
+        device = None, dtype = None, wmin = -float("inf"), wmax = float("inf"),
+        step_mode: str = "s"
+    ):
+        """The constructor of Conv3dIdentitySynapse.
+
+        Args:
+            in_channels (int): the argument for Conv3dSynapseConn.
+            out_channels (int): the argument for Conv3dSynapseConn.
+            kernel_size (ttypes._size_3_t): the argument for Conv3dSynapseConn.
+            stride (ttypes._size_3_t, optional): the argument for 
+                Conv3dSynapseConn. Defaults to 1.
+            padding (Union[ttypes._size_3_t, str], optional): the argument for 
+                Conv3dSynapseConn.. Defaults to 0.
+            dilation (ttypes._size_3_t, optional): the argument for
+                Conv3dSynapseConn. Defaults to 1.
+            groups (int, optional): the argument for Conv3dSynapseConn. 
+                Defaults to 1.
+            bias (bool, optional): the argument for Conv3dSynapseConn. Defaults 
+                to False.
+            padding_mode (str, optional): the argument for Conv3dSynapseConn.
+                Defaults to "zeros".
+            device (optional): Defaults to None.
+            dtype (optional): Defaults to None.
+            wmin (Union[float, torch.Tensor], optional): the argument for 
+                Conv3dSynapseConn. Defaults to -inf.
+            wmax (Union[float, torch.Tensor], optional): the argument for 
+                Conv3dSynapseConn. Defaults to inf.
+            step_mode (str, optional): "s" for single-step mode, and "m" for
+                multi-step mode. Defaults to "s".
+        """
+        super().__init__(
+            conn = synapse_conn.Conv3dSynapseConn(
+                in_channels, out_channels, kernel_size, stride, padding, 
+                dilation, groups, bias, padding_mode, device, dtype, wmin, wmax
             ),
             filter = synapse_filter.IdentitySynapseFilter(),
             step_mode = step_mode
