@@ -361,7 +361,7 @@ def rate_plot_test():
 def gradient_test(
     T: int = 25, B: int = 32, M: int = 32, N: int = 24, 
     k1: int = 4, n_soma: int = 3, tau_dend = 3., tau_soma = 20.,
-    iterations: int = 10000, lr = 1.,
+    iterations: int = 1000, lr = 1.,
     surrogate_function = surrogate.Sigmoid()
 ):
     print("====="*20)

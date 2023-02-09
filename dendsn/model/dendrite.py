@@ -246,7 +246,6 @@ class VDiffDend(BaseDend):
             data=torch.tensor(coupling_strength),
             requires_grad=coupling_strength_learnable
         )
-        self.coupling_strength = coupling_strength
 
     @property
     def coupling_strength_learnable(self) -> bool:

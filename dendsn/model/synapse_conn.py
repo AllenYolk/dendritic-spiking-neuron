@@ -139,6 +139,17 @@ class LinearSynapseConn(nn.Linear, BaseSynapseConn):
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         return super().forward(x_seq)
 
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.step_mode == "s":
+            return self.single_step_forward(x)
+        elif self.step_mode == "m":
+            return self.multi_step_forward(x)
+        else:
+            raise ValueError(
+                f"LinearSynapseConn.step_mode should be 'm' or 's', "
+                f"but get {self.step_mode} instead."
+            )
+
 
 class MaskedLinearSynapseConn(BaseSynapseConn):
     """Reimplemented nn.Linear with a sparsity mask.
@@ -220,6 +231,17 @@ class MaskedLinearSynapseConn(BaseSynapseConn):
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         return F.linear(x_seq, self.weight * self.weight_mask, self.bias)
 
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.step_mode == "s":
+            return self.single_step_forward(x)
+        elif self.step_mode == "m":
+            return self.multi_step_forward(x)
+        else:
+            raise ValueError(
+                f"MaskedLinearSynapseConn.step_mode should be 'm' or 's', "
+                f"but get {self.step_mode} instead."
+            )
+
 
 class Conv1dSynapseConn(nn.Conv1d, BaseSynapseConn):
     """Wrapped nn.Conv1d.
@@ -270,6 +292,17 @@ class Conv1dSynapseConn(nn.Conv1d, BaseSynapseConn):
 
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         return functional.unfold_forward_fold(x_seq, super().forward)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.step_mode == "s":
+            return self.single_step_forward(x)
+        elif self.step_mode == "m":
+            return self.multi_step_forward(x)
+        else:
+            raise ValueError(
+                f"Conv1dSynapseConn.step_mode should be 'm' or 's', "
+                f"but get {self.step_mode} instead."
+            )
 
 
 class Conv2dSynapseConn(nn.Conv2d, BaseSynapseConn):
@@ -323,6 +356,17 @@ class Conv2dSynapseConn(nn.Conv2d, BaseSynapseConn):
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         return functional.unfold_forward_fold(x_seq, super().forward)
 
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.step_mode == "s":
+            return self.single_step_forward(x)
+        elif self.step_mode == "m":
+            return self.multi_step_forward(x)
+        else:
+            raise ValueError(
+                f"Conv2dSynapseConn.step_mode should be 'm' or 's', "
+                f"but get {self.step_mode} instead."
+            )
+
 
 class Conv3dSynapseConn(nn.Conv3d, BaseSynapseConn):
     """Wrapped nn.Conv3d.
@@ -373,3 +417,14 @@ class Conv3dSynapseConn(nn.Conv3d, BaseSynapseConn):
 
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         return functional.unfold_forward_fold(x_seq, super().forward)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.step_mode == "s":
+            return self.single_step_forward(x)
+        elif self.step_mode == "m":
+            return self.multi_step_forward(x)
+        else:
+            raise ValueError(
+                f"Conv3dSynapseConn.step_mode should be 'm' or 's', "
+                f"but get {self.step_mode} instead."
+            )
