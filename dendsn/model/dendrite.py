@@ -116,7 +116,8 @@ class BaseDend(base.MemoryModule, abc.ABC):
         # input_external.shape = [N, *soma_shape, self.wiring.n_compartment]
         self.compartment.v_float2tensor(input_external)
         input_internal = self.get_internal_input()
-        v_compartment = self.compartment.single_step_forward(
+        self.compartment.step_mode = "s"
+        v_compartment = self.compartment.forward(
             input_external + input_internal
         )
         return self.get_output(v_compartment)
@@ -184,11 +185,13 @@ class SegregatedDend(BaseDend):
         return 0
 
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
-        v_compartment = self.compartment.single_step_forward(x)
+        self.compartment.step_mode = "s"
+        v_compartment = self.compartment.forward(x)
         return v_compartment
 
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
-        v_compartment_seq = self.compartment.multi_step_forward(x_seq)
+        self.compartment.step_mode = "m"
+        v_compartment_seq = self.compartment.forward(x_seq)
         return v_compartment_seq
 
 

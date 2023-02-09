@@ -48,13 +48,17 @@ class BaseSynapse(nn.Module):
         self.filter.reset()
 
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
-        z = self.conn.single_step_forward(x)
-        y = self.filter.single_step_forward(z)
+        self.conn.step_mode = "s"
+        z = self.conn.forward(x)
+        self.filter.step_mode = "s"
+        y = self.filter.forward(z)
         return y
 
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
-        z_seq = self.conn.multi_step_forward(x_seq)
-        y_seq = self.filter.multi_step_forward(z_seq)
+        self.conn.step_mode = "m"
+        z_seq = self.conn.forward(x_seq)
+        self.filter.step_mode = "m"
+        y_seq = self.filter.forward(z_seq)
         return y_seq
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
