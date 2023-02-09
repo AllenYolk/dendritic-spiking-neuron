@@ -117,9 +117,7 @@ class BaseDend(base.MemoryModule, abc.ABC):
         self.compartment.v_float2tensor(input_external)
         input_internal = self.get_internal_input()
         self.compartment.step_mode = "s"
-        v_compartment = self.compartment.forward(
-            input_external + input_internal
-        )
+        v_compartment = self.compartment(input_external + input_internal)
         return self.get_output(v_compartment)
 
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
@@ -186,12 +184,12 @@ class SegregatedDend(BaseDend):
 
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
         self.compartment.step_mode = "s"
-        v_compartment = self.compartment.forward(x)
+        v_compartment = self.compartment(x)
         return v_compartment
 
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         self.compartment.step_mode = "m"
-        v_compartment_seq = self.compartment.forward(x_seq)
+        v_compartment_seq = self.compartment(x_seq)
         return v_compartment_seq
 
 
