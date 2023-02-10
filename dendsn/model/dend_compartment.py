@@ -21,9 +21,15 @@ class BaseDendCompartment(base.MemoryModule, abc.ABC):
         v (Union[float, torch.Tensor]): voltage of the dendritic compartment(s)
             at the current time step.
         step_mode (str): "s" for single-step mode, and "m" for multi-step mode.
+        store_v_seq (bool): whether to store the compartmental potential at 
+            every time step when using multi-step mode. If True, there is 
+            another attribute called v_seq.
     """
 
-    def __init__(self, v_init: float = 0., step_mode: str = "s"):
+    def __init__(
+        self, v_init: float = 0., 
+        step_mode: str = "s", store_v_seq: bool = False,
+    ):
         """The constructor of BaseDendCompartment.
 
         Args:
@@ -31,10 +37,24 @@ class BaseDendCompartment(base.MemoryModule, abc.ABC):
                 Defaults to 0..
             step_mode (str, optional): "s" for single-step mode, and "m" for
                 multi-step mode. Defaults to "s".
+            store_v_seq (bool, optional): whether to store the compartmental 
+                potential at every time step when using multi-step mode. 
+                Defaults to False.
         """
         super().__init__()
         self.register_memory("v", v_init)
         self.step_mode = step_mode
+        self.store_v_seq = store_v_seq
+
+    @property
+    def store_v_seq(self) -> bool:
+        return self._store_v_seq
+
+    @store_v_seq.setter
+    def store_v_seq(self, val: bool):
+        self._store_v_seq = val
+        if val and (not hasattr(self, "v_seq")):
+            self.register_memory("v_seq", None)
 
     def v_float2tensor(self, x: torch.Tensor):
         """If self.v is a float, turn it into a tensor with x's shape.
@@ -50,9 +70,15 @@ class BaseDendCompartment(base.MemoryModule, abc.ABC):
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         T = x_seq.shape[0]
         y_seq = []
+        if self.store_v_seq:
+            v_seq = []
         for t in range(T):
             y = self.single_step_forward(x_seq[t])
             y_seq.append(y)
+            if self.store_v_seq:
+                v_seq.append(self.v)
+        if self.store_v_seq:
+            self.v_seq = torch.stack(v_seq)
         return torch.stack(y_seq)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -75,8 +101,11 @@ class PassiveDendCompartment(BaseDendCompartment):
 
     Attributes:
         v (Union[float, torch.Tensor]): voltage of the dendritic compartment(s)
-            at the current time step
-        step_mode (str): "s" for single-step mode, and "m" for multi-step mode
+            at the current time step.
+        step_mode (str): "s" for single-step mode, and "m" for multi-step mode.
+        store_v_seq (bool): whether to store the compartmental potential at 
+            every time step when using multi-step mode. If True, there is 
+            another attribute called v_seq.
         tau(float): the time constant
         decay_input (bool, optional): whether the input to the compartments
             should be divided by tau.
@@ -85,7 +114,7 @@ class PassiveDendCompartment(BaseDendCompartment):
 
     def __init__(
         self, tau: float = 2, decay_input: bool = True, v_rest: float = 0.,
-        step_mode: str = "s"
+        step_mode: str = "s", store_v_seq: bool = False
     ):
         """The constructor of PassiveDendCompartment
 
@@ -96,8 +125,11 @@ class PassiveDendCompartment(BaseDendCompartment):
             v_rest (float, optional): resting potential. Defaults to 0..
             step_mode (str, optional): "s" for single-step mode, and "m" for
                 multi-step mode. Defaults to "s".
+            store_v_seq (bool, optional): whether to store the compartmental 
+                potential at every time step when using multi-step mode. 
+                Defaults to False.
         """
-        super().__init__(v_init=v_rest, step_mode=step_mode)
+        super().__init__(v_rest, step_mode, store_v_seq)
         self.tau = tau
         self.decay_input = decay_input
         self.v_rest = v_rest
@@ -152,7 +184,16 @@ class PAComponentDendCompartment(BaseDendCompartment):
             compartmental voltage at the current time step.
         vp (Union[float, torch.Tensor]): the passive component of the 
             compartmental voltage at the current time step.
-        step_mode (str): "s" for single-step mode, and "m" for multi-step mode
+        step_mode (str): "s" for single-step mode, and "m" for multi-step mode.
+        store_v_seq (bool): whether to store the compartmental potential at 
+            every time step when using multi-step mode. If True, there is 
+            another attribute called v_seq.
+        store_vp_seq (bool): whether to store the passive component of the 
+            compartmental potential at every time step when using multi-step 
+            mode. If True, there is another attribute called vp_seq.
+        store_va_seq (bool): whether to store the active component of the 
+            compartmental potential at every time step when using multi-step 
+            mode. If True, there is another attribute called va_seq.
         tau(float): the time constant for the passive component.
         decay_input (bool, optional): whether the input to the compartments
             should be divided by tau.
@@ -164,7 +205,9 @@ class PAComponentDendCompartment(BaseDendCompartment):
 
     def __init__(
         self, tau: float = 2., decay_input: bool = True, v_rest: float = 0., 
-        f_dca: Callable = lambda x: 0., step_mode: str = "s"
+        f_dca: Callable = lambda x: 0., step_mode: str = "s", 
+        store_v_seq: bool = False, store_vp_seq: bool = False, 
+        store_va_seq: bool = False
     ):
         """The constructor of PAComponentDendCompartment
 
@@ -179,14 +222,45 @@ class PAComponentDendCompartment(BaseDendCompartment):
                 the constant zero.
             step_mode (str, optional): "s" for single-step mode, and "m" for
                 multi-step mode. Defaults to "s".
+            store_v_seq (bool, optional): whether to store the compartmental 
+                potential at every time step when using multi-step mode. 
+                Defaults to False.
+            store_vp_seq (bool, optional): whether to store the passive 
+                component of the compartmental potential at every time step when 
+                using multi-step mode. Defaults to False.
+            store_v_seq (bool, optional): whether to store the active component 
+                of the compartmental potential at every time step when using 
+                multi-step mode. Defaults to False.
         """
-        super().__init__(v_rest, step_mode)
+        super().__init__(v_rest, step_mode, store_v_seq)
         self.tau = tau
         self.decay_input = decay_input
         self.v_rest = v_rest
         self.f_dca = f_dca
         self.register_memory("va", 0.)
         self.register_memory("vp", v_rest)
+        self.store_vp_seq = store_vp_seq
+        self.store_va_seq = store_va_seq
+
+    @property
+    def store_vp_seq(self) -> bool:
+        return self._store_vp_seq
+
+    @store_vp_seq.setter
+    def store_vp_seq(self, val: bool):
+        self._store_vp_seq = val
+        if val and (not hasattr(self, "vp_seq")):
+            self.register_memory("vp_seq", None)
+
+    @property
+    def store_va_seq(self) -> bool:
+        return self._store_va_seq
+
+    @store_va_seq.setter
+    def store_va_seq(self, val: bool):
+        self._store_va_seq = val
+        if val and (not hasattr(self, "va_seq")):
+            self.register_memory("va_seq", None)
 
     def v_float2tensor(self, x: torch.Tensor):
         """If self.v | vp | va is a float, turn it into a tensor with x's shape.
@@ -210,3 +284,29 @@ class PAComponentDendCompartment(BaseDendCompartment):
         self.va = self.f_dca(self.vp)
         self.v = self.vp + self.va
         return self.v
+
+    def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
+        T = x_seq.shape[0]
+        y_seq = []
+        if self.store_v_seq:
+            v_seq = []
+        if self.store_vp_seq:
+            vp_seq = []
+        if self.store_va_seq:
+            va_seq = []
+        for t in range(T):
+            y = self.single_step_forward(x_seq[t])
+            y_seq.append(y)
+            if self.store_v_seq:
+                v_seq.append(self.v)
+            if self.store_vp_seq:
+                vp_seq.append(self.vp)
+            if self.store_va_seq:
+                va_seq.append(self.va)
+        if self.store_v_seq:
+            self.v_seq = torch.stack(v_seq)
+        if self.store_vp_seq:
+            self.vp_seq = torch.stack(vp_seq)
+        if self.store_va_seq:
+            self.va_seq = torch.stack(va_seq)
+        return torch.stack(y_seq)
