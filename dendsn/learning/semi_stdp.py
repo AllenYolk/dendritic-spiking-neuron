@@ -28,7 +28,7 @@ def semistdp_linear_single_step(
         post_spike_syn = post_spike
     else:
         post_spike_syn = (
-            post_spike.repeat(1, 1, n_input_comp).view(B, -1)
+            post_spike.unsqueeze(-1).repeat(1, 1, n_input_comp).view(B, -1)
         ) # [B, N_out]
 
     # [B, N_out, N_in] -> [N_out, N_in]
@@ -62,7 +62,8 @@ def semistdp_linear_multi_step(
         post_spike_syn = post_spike
     else:
         post_spike_syn = (
-            post_spike.repeat(1, 1, 1, n_input_comp).view(T, B, -1)
+            post_spike.unsqueeze(-1).repeat(1, 1, 1, n_input_comp)
+            .view(T, B, -1)
         ) # [T, B, N_out]
 
     # [T, B, N_out, N_in] -> [N_out, N_in]

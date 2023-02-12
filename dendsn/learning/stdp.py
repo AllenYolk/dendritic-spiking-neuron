@@ -35,10 +35,10 @@ def stdp_linear_single_step(
         post_spike_syn = post_spike
     else:
         trace_post_syn = (
-            trace_post.repeat(1, 1, n_input_comp).view(B, -1)
+            trace_post.unsqueeze(-1).repeat(1, 1, n_input_comp).view(B, -1)
         ) # [B, N_out]
         post_spike_syn = (
-            post_spike.repeat(1, 1, n_input_comp).view(B, -1)
+            post_spike.unsqueeze(-1).repeat(1, 1, n_input_comp).view(B, -1)
         ) # [B, N_out]
 
     # [B, N_out, N_in] -> [N_out, N_in]
@@ -86,10 +86,12 @@ def stdp_linear_multi_step(
         post_spike_syn = post_spike
     else:
         trace_post_seq_syn = (
-            trace_post.repeat(1, 1, 1, n_input_comp).view(T, B, -1)
+            trace_post.unsqueeze(-1).repeat(1, 1, 1, n_input_comp)
+            .view(T, B, -1)
         ) # [T, B, N_out]
         post_spike_syn = (
-            post_spike.repeat(1, 1, 1, n_input_comp).view(T, B, -1)
+            post_spike.unsqueeze(-1).repeat(1, 1, 1, n_input_comp)
+            .view(T, B, -1)
         ) # [T, B, N_out]
 
     # [T, B, N_out, N_in] -> [N_out, N_in]
