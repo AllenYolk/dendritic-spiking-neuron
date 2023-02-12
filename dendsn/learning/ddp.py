@@ -1,8 +1,9 @@
-from typing import Callable, Union
+from typing import Callable, Union, Optional
 
 import torch
 import torch.nn as nn
 from spikingjelly.activation_based import monitor
+from spikingjelly.activation_based import neuron as sj_neuron
 
 from dendsn.learning.base import BaseLearner
 from dendsn.model import synapse
@@ -20,11 +21,11 @@ def ddp_linear_single_step(
     B = pre_spike.shape[0]
     n_comp = dsn.dend.wiring.n_compartment
     # n_input_comp = dsn.dend.wiring.n_input
-    v_dend = v_dend.view(B, -1)
-    v_soma = v_soma.repeat(1, 1, n_comp).view(B, -1)
-    # [B, N_soma * n_comp] = [B, N_soma * n_input_comp] = [B, N_out]
+    v_soma = v_soma.unsqueeze(-1).repeat(1, 1, n_comp)
+    # [B, N_soma, n_comp] = [B, N_soma, n_input_comp]
 
-    pred_error = f_rate(v_soma) - f_rate(f_u_pred(v_dend))
+    pred_error = f_rate(v_soma) - f_rate(f_u_pred(v_dend, dsn))
+    pred_error = pred_error.view(B, -1) # [B, N_soma*n_comp] = [B, N_out]
     delta_w = (pred_error.unsqueeze(-1) * pre_spike.unsqueeze(1)).sum(0)
     return f_w(weight) * delta_w
 
@@ -38,11 +39,11 @@ def ddp_linear_multi_step(
     T, B = pre_spike.shape[0], pre_spike.shape[1]
     n_comp = dsn.dend.wiring.n_compartment
     # n_input_comp = dsn.dend.wiring.n_input
-    v_dend = v_dend.view(T, B, -1)
-    v_soma = v_soma.repeat(1, 1, 1, n_comp).view(T, B, -1)
-    # [T, B, N_soma * n_comp] = [T, B, N_soma * n_input_comp] = [T, B, N_out]
+    v_soma = v_soma.unsqueeze(-1).repeat(1, 1, 1, n_comp)
+    # [T, B, N_soma, n_comp] = [T, B, N_soma, n_input_comp]
 
-    pred_error = f_rate(v_soma) - f_rate(f_u_pred(v_dend))
+    pred_error = f_rate(v_soma) - f_rate(f_u_pred(v_dend, dsn))
+    pred_error = pred_error.view(T, B, -1) # [T, B, N_out]
     delta_w = (pred_error.unsqueeze(-1) * pre_spike.unsqueeze(2)).sum((0, 1))
     return f_w(weight) * delta_w
 
@@ -74,7 +75,7 @@ class DDPLearner(BaseLearner):
     def __init__(
         self, syn: Union[synapse.BaseSynapse, synapse_conn.BaseSynapseConn],
         dsn: neuron.BaseDendNeuron, f_rate: Callable, 
-        f_w: Callable = lambda w: 1, f_u_pred: Callable = lambda u: u,
+        f_w: Callable = lambda w: 1, f_u_pred: Optional[Callable] = None,
         step_mode: str = "s", specified_multi_imp: bool = False
     ):
         super().__init__(step_mode=step_mode)
@@ -97,7 +98,7 @@ class DDPLearner(BaseLearner):
         )
         self.f_rate = f_rate
         self.f_w = f_w
-        self.f_u_pred = f_u_pred
+        self.f_u_pred = self.get_f_u_pred() if (f_u_pred is None) else f_u_pred
 
         conn = syn
         if isinstance(self.syn, synapse.BaseSynapse):
@@ -110,8 +111,49 @@ class DDPLearner(BaseLearner):
             )
         else:
             raise NotImplementedError(
-                f"STDPLearner doesn't support synapse_conn: {conn}"
+                f"DDPLearner doesn't support synapse_conn: {conn}"
             )
+
+    def get_f_u_pred(self):
+        if not isinstance(self.dsn.dend, dendrite.SegregatedDend):
+            raise NotImplementedError(
+                f"DDPLearner only supports dsn with SegregatedDend at present, "
+                f"but type(dsn.dend)={type(self.dsn.dend)}."
+            )
+
+        if isinstance(self.dsn, neuron.VDiffForwardDendNeuron):
+            if isinstance(self.dsn.soma, sj_neuron.LIFNode):
+                def f_u_pred(v_dend, dsn):
+                    fs = dsn.f_da * torch.ones_like(v_dend)
+                    vr = dsn.soma.v_reset
+                    tau = 1. if dsn.soma.decay_input else dsn.soma.tau
+                    numerator = fs * v_dend + vr / tau
+                    denominator = fs.sum() + 1. / tau
+                    return numerator / denominator
+            else:
+                raise NotImplementedError(
+                    f"type(self.dsn.soma)={type(self.dsn.soma)}"
+                )
+
+        elif isinstance(self.dsn, neuron.VActivationForwardDendNeuron):
+            if isinstance(self.dsn.soma, sj_neuron.LIFNode):
+                def f_u_pred(v_dend, dsn):
+                    f_da = dsn.f_da
+                    fs = dsn.forward_strength
+                    vr = dsn.soma.v_reset
+                    tau = 1. if dsn.soma.decay_input else dsn.soma.tau
+                    return tau * f_da(v_dend) * fs + vr
+            else:
+                raise NotImplementedError(
+                    f"type(self.dsn.soma)={type(self.dsn.soma)}"
+                )
+
+        else:
+            raise NotImplementedError(
+                f"type(self.dsn)={type(self.dsn)}"
+            )
+
+        return f_u_pred
 
     def reset(self):
         super().reset()
