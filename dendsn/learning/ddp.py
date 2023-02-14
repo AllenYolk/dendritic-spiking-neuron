@@ -87,15 +87,19 @@ class DDPLearner(BaseLearner):
                 f"but type(dsn.dend)={type(self.dsn.dend)}."
             )
 
+        if step_mode == "m":
+            self.dsn.store_v_dend_seq = True
+            self.dsn.store_v_soma_seq = True
         self.pre_spike_monitor = monitor.InputMonitor(syn)
         self.v_dend_monitor = monitor.AttributeMonitor(
-            "v_seq" if step_mode=="m" else "v", 
-            pre_forward=False, net=dsn.dend.compartment
+            "v_dend_seq" if step_mode=="m" else "v_dend", 
+            pre_forward=False, net=dsn
         )
         self.v_soma_monitor = monitor.AttributeMonitor(
-            "v_seq" if step_mode=="m" else "v", 
-            pre_forward=False, net=dsn.soma
+            "v_soma_seq" if step_mode=="m" else "v_soma", 
+            pre_forward=False, net=dsn
         )
+
         self.f_rate = f_rate
         self.f_w = f_w
         self.f_u_pred = self.get_f_u_pred() if (f_u_pred is None) else f_u_pred
@@ -124,7 +128,7 @@ class DDPLearner(BaseLearner):
         if isinstance(self.dsn, neuron.VDiffForwardDendNeuron):
             if isinstance(self.dsn.soma, sj_neuron.LIFNode):
                 def f_u_pred(v_dend, dsn):
-                    fs = dsn.f_da * torch.ones_like(v_dend)
+                    fs = dsn.forward_strength * torch.ones_like(v_dend)
                     vr = dsn.soma.v_reset
                     tau = 1. if dsn.soma.decay_input else dsn.soma.tau
                     numerator = fs * v_dend + vr / tau
