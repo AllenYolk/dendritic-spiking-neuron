@@ -10,13 +10,12 @@ import abc
 from typing import Union, List, Optional, Callable
 
 import torch
-import torch.nn as nn
 from torch.nn import parameter
 import numpy as np
-from spikingjelly.activation_based import neuron as sj_neuron
 from spikingjelly.activation_based import base
 
 from dendsn.model import dendrite
+from dendsn.model import soma
 
 
 class BaseDendNeuron(base.MemoryModule, abc.ABC):
@@ -32,8 +31,7 @@ class BaseDendNeuron(base.MemoryModule, abc.ABC):
         dend (BaseDend): dendritic model for a single neuron in the layer.
         v_dend (torch.Tensor): dendritic compartmental potential at the curret 
             time step.
-        soma (BaseNode): somatic model considering all the neurons in the layer. 
-            Typically an activation-based neuron layer in spikingjelly.
+        soma (BaseSoma): somatic model considering all the neurons in the layer. 
         v_soma (torch.Tensor): somatic potential at the current time step.
         soma_shape (List[int]): the shape of the somatic voltage tensor in this 
             module. The spatial structure of the neurons in this layer. Read
@@ -49,7 +47,7 @@ class BaseDendNeuron(base.MemoryModule, abc.ABC):
     """
 
     def __init__(
-        self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode,
+        self, dend: dendrite.BaseDend, soma: soma.BaseSoma,
         soma_shape: List[int], step_mode: str = "s", 
         store_v_dend_seq: bool = False, store_v_soma_seq: bool = False
     ):
@@ -57,7 +55,7 @@ class BaseDendNeuron(base.MemoryModule, abc.ABC):
 
         Args:
             dend (BaseDend): dendritic model for a single neuron.
-            soma (BaseNode): somatic model considering all the neurons.
+            soma (BaseSoma): somatic model considering all the neurons.
             soma_shape (List[int]): the shape of the somatic voltage tensor in
                 this module. The spatial structure of the neurons in this layer.
             step_mode (str, optional): "s" for single-step mode, and "m" for 
@@ -257,7 +255,7 @@ class VForwardDendNeuron(BaseDendNeuron, abc.ABC):
     """
 
     def __init__(
-        self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode,
+        self, dend: dendrite.BaseDend, soma: soma.BaseSoma,
         soma_shape: List[int], 
         forward_strength: Union[float, torch.Tensor] = 1.,
         forward_strength_learnable: bool = False, step_mode: str = "s", 
@@ -267,7 +265,7 @@ class VForwardDendNeuron(BaseDendNeuron, abc.ABC):
 
         Args:
             dend (BaseDend): dendrite model for a single neuron.
-            soma (BaseNode): somatic model considering all the neurons.
+            soma (BaseSoma): somatic model considering all the neurons.
             soma_shape (List[int]): the shape of the somatic voltage tensor in
                 this module. The spatial structure of the neurons in this layer.
                 The batch dimension should not be included in this list.
@@ -347,7 +345,7 @@ class VForwardDendNeuron(BaseDendNeuron, abc.ABC):
 
         # input2soma.shape = [N, *self.soma_shape]
         self.soma.step_mode = "s"
-        soma_spike = self.soma(input2soma)
+        soma_spike, _ = self.soma(input2soma)
         return soma_spike
 
 
@@ -368,7 +366,7 @@ class VDiffForwardDendNeuron(VForwardDendNeuron):
     """
 
     def __init__(
-        self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode,
+        self, dend: dendrite.BaseDend, soma: soma.BaseSoma,
         soma_shape: List[int],
         forward_strength: Union[float, torch.Tensor] = 1.,
         forward_strength_learnable: bool = False, step_mode: str = "s",
@@ -378,7 +376,7 @@ class VDiffForwardDendNeuron(VForwardDendNeuron):
 
         Args:
             dend (BaseDend): dendrite model for a single neuron.
-            soma (BaseNode): somatic model considering all the neurons.
+            soma (BaseSoma): somatic model considering all the neurons.
             soma_shape (List[int]): the shape of the somatic voltage tensor in
                 this module. The spatial structure of the neurons in this layer.
                 The batch dimension should not be included in this list.
@@ -435,7 +433,7 @@ class VDiffForwardDendNeuron(VForwardDendNeuron):
             v_dend_output = v_dend_output_seq[t]
             input2soma = self.get_input2soma(v_dend_output, v_soma)
             # input2soma.shape = [N, *self.soma_shape]
-            soma_spike = self.soma(input2soma)
+            soma_spike, _ = self.soma(input2soma)
             soma_spike_seq.append(soma_spike)
             if self.store_v_soma_seq:
                 v_soma_seq.append(self.v_soma)
@@ -468,7 +466,7 @@ class VActivationForwardDendNeuron(VForwardDendNeuron):
     """
 
     def __init__(
-        self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode,
+        self, dend: dendrite.BaseDend, soma: soma.BaseSoma,
         soma_shape: List[int], f_da: Callable,
         forward_strength: Union[float, torch.Tensor] = 1.,
         forward_strength_learnable: bool = False, step_mode: str = "s",
@@ -478,7 +476,7 @@ class VActivationForwardDendNeuron(VForwardDendNeuron):
 
         Args:
             dend (BaseDend): dendrite model for a single neuron.
-            soma (BaseNode): somatic model considering all the neurons.
+            soma (BaseSoma): somatic model considering all the neurons.
             soma_shape (List[int]): the shape of the somatic voltage tensor in
                 this module. The spatial structure of the neurons in this layer.
                 The batch dimension should not be included in this list.
@@ -530,7 +528,7 @@ class VActivationForwardDendNeuron(VForwardDendNeuron):
         input2soma_seq = self.get_input2soma(v_dend_output_seq, self.soma.v)
         #input2soma_seq.shape = [T, N, *self.soma_shape]
         self.soma.step_mode = "m"
-        soma_spike_seq = self.soma(input2soma_seq)
+        soma_spike_seq, _ = self.soma(input2soma_seq)
         if self.store_v_dend_seq:
             self.v_dend_seq = self.dend.compartment.v_seq
         if self.store_v_soma_seq:
@@ -565,7 +563,7 @@ class VForwardSBackwardDendNeuron(BaseDendNeuron, abc.ABC):
     """
 
     def __init__(
-        self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode, 
+        self, dend: dendrite.BaseDend, soma: soma.BaseSoma, 
         soma_shape: List[int], 
         forward_strength: Union[float, torch.Tensor] = 1.,
         forward_strength_learnable: bool = False,
@@ -578,7 +576,7 @@ class VForwardSBackwardDendNeuron(BaseDendNeuron, abc.ABC):
 
         Args:
             dend (BaseDend): dendrite model for a single neuron.
-            soma (BaseNode): somatic model considering all the neurons.
+            soma (BaseSoma): somatic model considering all the neurons.
             soma_shape (List[int]): the shape of the somatic voltage tensor in
                 this module. The spatial structure of the neurons in this layer.
             forward_strength (Union[float, torch.Tensor], optional): 
@@ -694,7 +692,7 @@ class VForwardSBackwardDendNeuron(BaseDendNeuron, abc.ABC):
 
         # input2soma.shape = [N, *self.soma_shape]
         self.soma.step_mode = "s"
-        soma_spike = self.soma(input2soma)
+        soma_spike, _ = self.soma(input2soma)
         self.bp_soma_spike(soma_spike)
         return soma_spike
 
@@ -717,7 +715,7 @@ class VDiffForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
     """
 
     def __init__(
-        self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode, 
+        self, dend: dendrite.BaseDend, soma: soma.BaseSoma, 
         soma_shape: List[int],
         forward_strength: Union[float, torch.Tensor] = 1.,
         forward_strength_learnable: bool = False,
@@ -730,7 +728,7 @@ class VDiffForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
 
         Args:
             dend (BaseDend): dendrite model for a single neuron.
-            soma (BaseNode): somatic model considering all the neurons.
+            soma (BaseSoma): somatic model considering all the neurons.
             soma_shape (List[int]): the shape of the somatic voltage tensor in
                 this module. The spatial structure of the neurons in this layer.
             forward_strength (Union[float, torch.Tensor], optional): 
@@ -803,7 +801,7 @@ class VActivationForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
     """
 
     def __init__(
-        self, dend: dendrite.BaseDend, soma: sj_neuron.BaseNode, 
+        self, dend: dendrite.BaseDend, soma: soma.BaseSoma, 
         soma_shape: List[int], f_da: Callable,
         forward_strength: Union[float, torch.Tensor] = 1.,
         forward_strength_learnable: bool = False,
@@ -816,7 +814,7 @@ class VActivationForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
 
         Args:
             dend (BaseDend): dendrite model for a single neuron.
-            soma (BaseNode): somatic model considering all the neurons.
+            soma (BaseSoma): somatic model considering all the neurons.
             soma_shape (List[int]): the shape of the somatic voltage tensor in
                 this module. The spatial structure of the neurons in this layer.
             f_da (Callable): the dendritic activation function applied on all 

@@ -11,7 +11,7 @@ from torchvision import transforms
 from spikingjelly.activation_based import neuron as sj_neuron
 from spikingjelly.activation_based import functional
 from spikingjelly.activation_based import surrogate
-from spikingjelly.activation_based import layer
+from spikingjelly.activation_based import layer, monitor
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import numpy as np
@@ -19,8 +19,9 @@ import numpy as np
 from dendsn.model import dend_compartment, wiring, dendrite 
 from dendsn.model import synapse
 from dendsn.model import neuron
+from dendsn.model import soma
 from dendsn import stochastic_firing
-from dendsn.learning import stdp, semi_stdp
+from dendsn import learning
 import reunn
 import reunn.implementation
 import cltask
@@ -125,7 +126,7 @@ def neuron_test(
             ),
             coupling_strength = (tau_dend - 1.) / k1# dynamics analysis
         ),
-        soma = sj_neuron.LIFNode(tau = tau_soma,),
+        soma = soma.LIFSoma(tau = tau_soma,),
         soma_shape = [n_soma],
         step_mode = "m"
     )
@@ -140,7 +141,7 @@ def neuron_test(
             ),
             coupling_strength = (tau_dend - 1.) / k1
         ),
-        soma = sj_neuron.LIFNode(tau = tau_soma),
+        soma = soma.LIFSoma(tau = tau_soma),
         soma_shape = [n_soma],
         step_mode = "m"
     )
@@ -155,7 +156,7 @@ def neuron_test(
             ),
             coupling_strength = (tau_dend - 1.) / k1# dynamics analysis
         ),
-        soma = sj_neuron.LIFNode(tau = tau_soma),
+        soma = soma.LIFSoma(tau = tau_soma),
         soma_shape = [n_soma],
         step_mode = "m"
     )
@@ -170,7 +171,7 @@ def neuron_test(
             ),
             coupling_strength = (tau_dend - 1.) / k1
         ),
-        soma = sj_neuron.LIFNode(tau = tau_soma),
+        soma = soma.LIFSoma(tau = tau_soma),
         soma_shape = [n_soma],
         step_mode = "m"
     )
@@ -291,7 +292,7 @@ def stochastic_test(
             ),
             coupling_strength = (tau_dend - 1.) / k1# dynamics analysis
         ),
-        soma = sj_neuron.LIFNode(
+        soma = soma.LIFSoma(
             tau = tau_soma, surrogate_function = stf,
         ),
         soma_shape = [n_soma],
@@ -307,7 +308,7 @@ def stochastic_test(
             ),
             coupling_strength = (tau_dend - 1.) / k1# dynamics analysis
         ),
-        soma = sj_neuron.LIFNode(
+        soma = soma.LIFSoma(
             tau = tau_soma, surrogate_function = stf2,
         ),
         soma_shape = [n_soma],
@@ -378,7 +379,7 @@ def gradient_test(
             ),
             coupling_strength = (tau_dend - 1.) / k1# dynamics analysis
         ),
-        soma = sj_neuron.LIFNode(
+        soma = soma.LIFSoma(
             tau = tau_soma,
             surrogate_function = surrogate_function
         ),
@@ -469,7 +470,7 @@ def conv_test(
             ),
             coupling_strength = (tau_dend - 1.) / k1# dynamics analysis
         ),
-        soma = sj_neuron.LIFNode(
+        soma = soma.LIFSoma(
             tau = tau_soma,
             surrogate_function = surrogate_function
         ),
@@ -519,7 +520,7 @@ def mnist_fc_net(neuron_type, firing_type):
     if firing_type == "deterministic":
         sur = surrogate.Sigmoid()
     elif firing_type == "stochastic":
-        sur = stochastic_firing.LogisticStochasticFiring(f_thres=0.95, beta=5)
+        sur = stochastic_firing.LogisticStochasticFiring(f_thres=0.95, beta=7.5)
 
     if neuron_type == "VDiffForward":
         n1 = neuron.VDiffForwardDendNeuron(
@@ -529,7 +530,7 @@ def mnist_fc_net(neuron_type, firing_type):
                 ),
                 wiring=wiring.SegregatedDendWiring(n_compartment=1)
             ),
-            soma=sj_neuron.LIFNode(surrogate_function=sur),
+            soma=soma.LIFSoma(surrogate_function=sur),
             soma_shape=[512],
             step_mode="m"
         )
@@ -540,7 +541,7 @@ def mnist_fc_net(neuron_type, firing_type):
                 ),
                 wiring=wiring.SegregatedDendWiring(n_compartment=1)
             ),
-            soma = sj_neuron.LIFNode(surrogate_function=sur),
+            soma = soma.LIFSoma(surrogate_function=sur),
             soma_shape = [128],
             step_mode = "m"
         )
@@ -552,7 +553,7 @@ def mnist_fc_net(neuron_type, firing_type):
                 ),
                 wiring=wiring.SegregatedDendWiring(n_compartment=1),
             ),
-            soma=sj_neuron.LIFNode(surrogate_function=sur),
+            soma=soma.LIFSoma(surrogate_function=sur),
             soma_shape=[512], f_da=gaussian,
             forward_strength_learnable=True,
             step_mode="m"
@@ -564,7 +565,7 @@ def mnist_fc_net(neuron_type, firing_type):
                 ),
                 wiring=wiring.SegregatedDendWiring(n_compartment=1),
             ),
-            soma=sj_neuron.LIFNode(surrogate_function=sur),
+            soma=soma.LIFSoma(surrogate_function=sur),
             soma_shape=[128], f_da=gaussian,
             forward_strength_learnable=True,
             step_mode="m"
@@ -577,7 +578,7 @@ def mnist_fc_net(neuron_type, firing_type):
                 ),
                 wiring=wiring.SegregatedDendWiring(n_compartment=1)
             ),
-            soma=sj_neuron.LIFNode(surrogate_function=sur),
+            soma=soma.LIFSoma(surrogate_function=sur),
             soma_shape=[512],
             step_mode="m"
         )
@@ -588,7 +589,7 @@ def mnist_fc_net(neuron_type, firing_type):
                 ),
                 wiring=wiring.SegregatedDendWiring(n_compartment=1)
             ),
-            soma = sj_neuron.LIFNode(surrogate_function=sur),
+            soma = soma.LIFSoma(surrogate_function=sur),
             soma_shape = [128],
             step_mode = "m"
         )
@@ -600,7 +601,7 @@ def mnist_fc_net(neuron_type, firing_type):
                 ),
                 wiring=wiring.SegregatedDendWiring(n_compartment=1)
             ),
-            soma=sj_neuron.LIFNode(surrogate_function=sur),
+            soma=soma.LIFSoma(surrogate_function=sur),
             soma_shape=[512], f_da=lambda x: x,
             step_mode="m"
         )
@@ -611,7 +612,7 @@ def mnist_fc_net(neuron_type, firing_type):
                 ),
                 wiring=wiring.SegregatedDendWiring(n_compartment=1)
             ),
-            soma = sj_neuron.LIFNode(surrogate_function=sur),
+            soma = soma.LIFSoma(surrogate_function=sur),
             soma_shape = [128], f_da=lambda x: x,
             step_mode = "m"
         )
@@ -755,7 +756,7 @@ def stdp_test(neuron_type, firing_type, data_dir, log_dir, epochs, T):
     stdp_learn_params = []
     for i in range(len(net)):
         if isinstance(net[i], target_synapse_type) and (i < len(net)-1):
-            stdp_learners.append(semi_stdp.SemiSTDPLearner(
+            stdp_learners.append(learning.SemiSTDPLearner(
                 syn=net[i], dsn=net[i+1], tau_pre=3.,
                 f_w_pre_post=f_w_pre_post,
                 f_trace_pre=f_trace_pre,
@@ -789,6 +790,93 @@ def stdp_test(neuron_type, firing_type, data_dir, log_dir, epochs, T):
 
                 functional.reset_net(net)
                 for learner in stdp_learners:
+                    learner.reset()
+
+            w1 = net[1].weight
+            print(f"train_acc={acc_cnt/train_sample_cnt}, shift={(w1-w0).mean()}")
+            f, ax = plt.subplots()
+            im = ax.imshow(w1[0].view([28, 28]))
+            f.colorbar(im, ax=ax)
+            plt.show()
+        print((net[1].weight-w0)[0])
+
+
+def dendritic_prediction_plasticity_test(
+    neuron_type, firing_type, data_dir, log_dir, epochs, T
+):
+    train_loader = data.DataLoader(
+        dataset=datasets.MNIST(
+            root=data_dir, download=True, train=True,
+            transform=transforms.ToTensor()
+        ),
+        batch_size=64, shuffle=False, drop_last=False
+    )
+    test_loader = data.DataLoader(
+        dataset=datasets.MNIST(
+            root=data_dir, download=True, train=False, 
+            transform=transforms.ToTensor()
+        ),
+        batch_size=128, shuffle=False, drop_last=False
+    )
+    net = mnist_fc_net(neuron_type, firing_type)
+    sur = stochastic_firing.LogisticStochasticFiring(f_thres=0.95, beta=7.5)
+
+    if False:
+        p = reunn.SupervisedClassificationTaskPipeline(
+            backend="spikingjelly", net=net, log_dir=log_dir, T=T,
+            hparam={
+                "neuron_type": neuron_type, "firing_type": firing_type, 
+                "T": T, "epochs": epochs
+            },
+            criterion=nn.CrossEntropyLoss(),
+            optimizer=optim.Adam(params=net.parameters(),lr=1e-4),
+            train_loader=train_loader, validation_loader=test_loader
+        )
+        p.train(
+            epochs=1, validation=True, silent=False, 
+            rec_runtime_msg=False, rec_hparam_msg=False
+        )
+
+    f, ax = sur.plot_firing_rate()
+    plt.show()
+
+    functional.reset_net(net=net)
+    ddp_learners = []
+    ddp_parameters = []
+    for i in range(len(net)):
+        if isinstance(net[i], nn.Linear) and (i < len(net)-1):
+            ddp_learners.append(learning.DDPLearner(
+                syn=net[i], dsn=net[i+1], f_rate=sur.rate_function,
+                step_mode="m", specified_multi_imp=False
+            ))
+            for p in net[i].parameters():
+                ddp_parameters.append(p)
+    optimizer = optim.SGD(params=ddp_parameters, lr=1e-4)
+
+    w0 = net[1].weight.clone()
+    f, ax = plt.subplots()
+    im = ax.imshow(w0[0].view([28, 28]).detach())
+    f.colorbar(im, ax=ax)
+    plt.show()
+    net.train()
+    with torch.no_grad():
+        for epoch in range(epochs):
+            train_sample_cnt, acc_cnt = 0, 0
+            for x, y in tqdm(train_loader):
+                x = x.repeat(T, 1, 1, 1, 1)
+                pred = net(x)
+                pred = pred.sum(dim=0)
+
+                optimizer.zero_grad()
+                for learner in ddp_learners:
+                    learner.step()
+                optimizer.step()
+
+                acc_cnt += (pred.argmax(dim=1) == y).sum().item()
+                train_sample_cnt += y.shape[0]
+
+                functional.reset_net(net)
+                for learner in ddp_learners:
                     learner.reset()
 
             w1 = net[1].weight
@@ -848,6 +936,11 @@ def main():
         )
     elif args.mode == "stdp":
         stdp_test(
+            args.neuron_type, args.firing_type,
+            args.data_dir, args.log_dir, args.epochs, args.T
+        )
+    elif args.mode == "ddp":
+        dendritic_prediction_plasticity_test(
             args.neuron_type, args.firing_type,
             args.data_dir, args.log_dir, args.epochs, args.T
         )

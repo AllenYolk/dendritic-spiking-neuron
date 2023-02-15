@@ -146,8 +146,8 @@ class LogisticStochasticFiring(BaseStochasticFiring):
 
         Notice: if the function is used as the spiking function for
         spikingjelly.activation_based.BaseNode (i.e. the `surrogate_function`
-        argument), theta should be set to 0 (since threshold has already been 
-        subtracted from v in spikingjelly).
+        argument) or dendsn.model.soma.BaseSoma, theta should be set to 0 (since 
+        threshold has already been subtracted from v).
 
         Args:
             f_thres (float): the firing rate at v=theta. f_thres = 0.5 * f_max
@@ -227,8 +227,8 @@ class ExpStochasticFiring(BaseStochasticFiring):
 
         Notice: if the function is used as the spiking function for
         spikingjelly.activation_based.BaseNode (i.e. the `surrogate_function`
-        argument), theta should be set to 0 (since threshold has already been 
-        subtracted from v in spikingjelly).
+        argument) or dendsn.model.soma.BaseSoma, theta should be set to 0 (since 
+        threshold has already been subtracted from v).
 
         Args:
             f_thres (float): the firing rate at v=theta.
