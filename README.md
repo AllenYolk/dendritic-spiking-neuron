@@ -26,7 +26,7 @@ Dendritic neurons are built in a bottom-up manner in this package, and each comp
     * dendrite: `model/dendrite.py`
         * dendritic compartments: `model/dend_compartment.py`
         * wiring of the compartments: `model/wiring.py`
-    * soma: `spikingjelly.activation_based.neuron.py`
+    * soma: `model/soma.py`
 * **synapse**: `model/synapse.py`
     * synaptic connection and weights: `model/synapse_conn.py`
     * synaptic filter: `model/synapse_filter.py`
