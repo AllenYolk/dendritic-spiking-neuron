@@ -11,14 +11,26 @@ class BaseSoma(neuron.BaseNode):
         self, v_threshold: float = 1., v_reset: float = 0., 
         surrogate_function: Callable = surrogate.Sigmoid(), 
         detach_reset: bool = False, step_mode: str = "s", 
-        backend: str = "torch", store_v_seq: bool = False
+        backend: str = "torch", 
+        store_v_seq: bool = False, store_v_pre_spike: bool = False
     ):
         super().__init__(
             v_threshold, v_reset, surrogate_function, detach_reset, step_mode,
             backend, store_v_seq
         )
+        self.store_v_pre_spike = store_v_pre_spike
 
-    def single_step_forward(self, x: torch.Tensor):
+    @property
+    def store_v_pre_spike(self) -> bool:
+        return self._store_v_pre_spike
+
+    @store_v_pre_spike.setter
+    def store_v_pre_spike(self, val: bool):
+        self._store_v_pre_spike = val
+        if val and (not hasattr(self, "v_pre_spike")):
+            self.register_memory("v_pre_spike", None)
+
+    def _single_step_forward(self, x: torch.Tensor):
         self.v_float_to_tensor(x)
         self.neuronal_charge(x)
         v_pre_spike = self.v
@@ -26,22 +38,31 @@ class BaseSoma(neuron.BaseNode):
         self.neuronal_reset(spike)
         return spike, v_pre_spike
 
+    def single_step_forward(self, x: torch.Tensor):
+        spike, v_pre_spike = self._single_step_forward(x)
+        if self.store_v_pre_spike:
+            self.v_pre_spike = v_pre_spike
+        return spike
+
     def multi_step_forward(self, x_seq: torch.Tensor):
         T = x_seq.shape[0]
         y_seq = []
-        v_pre_spike_seq = []
+        if self.store_v_pre_spike:
+            v_pre_spike_seq = []
         if self.store_v_seq:
             v_seq = []
         for t in range(T):
-            y, v_pre_spike = self.single_step_forward(x_seq[t])
+            y, v_pre_spike = self._single_step_forward(x_seq[t])
             y_seq.append(y)
-            v_pre_spike_seq.append(v_pre_spike)
+            if self.store_v_pre_spike:
+                v_pre_spike_seq.append(v_pre_spike)
             if self.store_v_seq:
                 v_seq.append(self.v)
-
         if self.store_v_seq:
             self.v_seq = torch.stack(v_seq)
-        return torch.stack(y_seq), torch.stack(v_pre_spike_seq)
+        if self.store_v_pre_spike:
+            self.v_pre_spike = torch.stack(v_pre_spike)
+        return torch.stack(y_seq)
 
 
 class LIFSoma(BaseSoma):
@@ -51,7 +72,8 @@ class LIFSoma(BaseSoma):
         v_threshold: float = 1., v_reset: float = 0., 
         surrogate_function: Callable = surrogate.Sigmoid(), 
         detach_reset: bool = False, step_mode: str = "s", 
-        backend: str = "torch", store_v_seq: bool = False
+        backend: str = "torch", 
+        store_v_seq: bool = False, store_v_pre_spike: bool = False
     ):
         if not (isinstance(tau, float) and tau >= 1.):
             return AssertionError(
@@ -60,7 +82,7 @@ class LIFSoma(BaseSoma):
             )
         super().__init__(
             v_threshold, v_reset, surrogate_function, detach_reset, 
-            step_mode, backend, store_v_seq
+            step_mode, backend, store_v_seq, store_v_pre_spike
         )
         self.tau = tau
         self.decay_input = decay_input
@@ -328,7 +350,9 @@ class LIFSoma(BaseSoma):
                             x, self.v, self.v_threshold, self.v_reset, self.tau
                         )
                     )
-            return spike, v_pre_spike
+            if self.store_v_pre_spike:
+                self.v_pre_spike = v_pre_spike
+            return spike
 
     def multi_step_forward(self, x_seq: torch.Tensor):
         if self.training:
@@ -393,4 +417,6 @@ class LIFSoma(BaseSoma):
                                 self.v_reset, self.tau
                             )
                         )
-            return spike_seq, v_pre_spike_seq
+            if self.store_v_pre_spike:
+                self.v_pre_spike = v_pre_spike_seq
+            return spike_seq
