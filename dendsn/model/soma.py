@@ -61,7 +61,7 @@ class BaseSoma(neuron.BaseNode):
         if self.store_v_seq:
             self.v_seq = torch.stack(v_seq)
         if self.store_v_pre_spike:
-            self.v_pre_spike = torch.stack(v_pre_spike)
+            self.v_pre_spike = torch.stack(v_pre_spike_seq)
         return torch.stack(y_seq)
 
 

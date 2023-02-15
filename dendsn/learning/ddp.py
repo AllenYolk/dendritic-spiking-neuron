@@ -89,12 +89,10 @@ class DDPLearner(BaseLearner):
             )
 
         self.dsn.store_v_soma_pre_spike = True
-        if step_mode == "m":
-            self.dsn.store_v_dend_seq = True
+        self.dsn.store_v_dend_pre_spike = True
         self.pre_spike_monitor = monitor.InputMonitor(syn)
         self.v_dend_monitor = monitor.AttributeMonitor(
-            "v_dend_seq" if step_mode=="m" else "v_dend", 
-            pre_forward=False, net=dsn
+            "v_dend_pre_spike", pre_forward=False, net=dsn
         )
         self.v_soma_monitor = monitor.AttributeMonitor(
             "v_soma_pre_spike", pre_forward=False, net=dsn

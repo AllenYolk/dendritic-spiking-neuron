@@ -44,16 +44,23 @@ class BaseDendNeuron(base.MemoryModule, abc.ABC):
         store_v_soma_seq (bool): whether to store the post-spike somatic  
             potential at every time step when using multi-step mode. If True, 
             there is another attribute called v_soma_seq.
-        store_v_soma_pre_spike (bool): whether to store the pre-spike somatic 
-            potential when calling forward() the last time, whether step_mode = 
-            "m" or "s". If True, there's another attribute called 
-            v_soma_pre_spike.
+        store_v_dend_pre_spike (bool): whether to store the dendritic potential 
+            before spike emission when forward() is called the last time, no 
+            matter which step mode the module is in. If True, there's another 
+            attribute called v_dend_pre_spike. The shape of v_dend_pre_spike
+            depends on which step mode ("s" or "m") this module is in.
+        store_v_soma_pre_spike (bool): whether to store the somatic potential
+            right before spike emission when forward() is called the last time, 
+            whether step_mode = "m" or "s". If True, there's another attribute 
+            called v_soma_pre_spike. The shape of v_soma_pre_spike depends on 
+            which step mode ("s" or "m") this module is in.
     """
 
     def __init__(
         self, dend: dendrite.BaseDend, soma: soma.BaseSoma,
         soma_shape: List[int], step_mode: str = "s", 
         store_v_dend_seq: bool = False, store_v_soma_seq: bool = False,
+        store_v_dend_pre_spike: bool = False,
         store_v_soma_pre_spike: bool = False
     ):
         """The constructor of BaseDendNeuron.
@@ -71,6 +78,9 @@ class BaseDendNeuron(base.MemoryModule, abc.ABC):
             store_v_soma_seq (bool, optional): whether to store the somatic
                 potential at every time step when using multi-step mode. 
                 Defaults to False.
+            store_v_dend_pre_spike (bool): whether to store the dendritic 
+                potential before spike emission when forward() is called the 
+                last time. Defaults to False.
             store_v_soma_pre_spike (bool): whether to store the pre-spike 
                 somatic potential when calling forward() the last time. 
                 Defaults to False.
@@ -83,6 +93,7 @@ class BaseDendNeuron(base.MemoryModule, abc.ABC):
         self.step_mode = step_mode
         self.store_v_dend_seq = store_v_dend_seq
         self.store_v_soma_seq = store_v_soma_seq
+        self.store_v_dend_pre_spike = store_v_dend_pre_spike
         self.store_v_soma_pre_spike = store_v_soma_pre_spike
 
     @property
@@ -122,6 +133,16 @@ class BaseDendNeuron(base.MemoryModule, abc.ABC):
         self.soma.store_v_seq = val
         if val and (not hasattr(self, "v_soma_seq")):
             self.register_memory("v_soma_seq", None)
+
+    @property
+    def store_v_dend_pre_spike(self) -> bool:
+        return self._store_v_dend_pre_spike
+
+    @store_v_dend_pre_spike.setter
+    def store_v_dend_pre_spike(self, val: bool):
+        self._store_v_dend_pre_spike = val
+        if val and (not hasattr(self, "v_dend_pre_spike")):
+            self.register_memory("v_dend_pre_spike", None)
 
     @property
     def store_v_soma_pre_spike(self) -> bool:
@@ -230,6 +251,8 @@ class BaseDendNeuron(base.MemoryModule, abc.ABC):
             v_dend_seq = []
         if self.store_v_soma_seq:
             v_soma_seq = []
+        if self.store_v_dend_pre_spike:
+            v_dend_pre_spike = []
         if self.store_v_soma_pre_spike:
             v_soma_pre_spike = []
         for t in range(T):
@@ -239,13 +262,21 @@ class BaseDendNeuron(base.MemoryModule, abc.ABC):
                 v_dend_seq.append(self.v_dend)
             if self.store_v_soma_seq:
                 v_soma_seq.append(self.v_soma)
-            if self.store_v_pre_spike:
+            if self.store_v_dend_pre_spike: 
+                # after single_step_forward() is called, self.v_dend_pre_spike 
+                # now contains v_dend_pre_spike at time step t
+                v_dend_pre_spike.append(self.v_dend_pre_spike)
+            if self.store_v_soma_pre_spike:
+                # after single_step_forward() is called, self.v_soma_pre_spike 
+                # now contains v_soma_pre_spike at time step t
                 v_soma_pre_spike.append(self.v_soma_pre_spike)
         y = torch.stack(soma_spike_seq)
         if self.store_v_dend_seq:
             self.v_dend_seq = torch.stack(v_dend_seq)
         if self.store_v_soma_seq:
             self.v_soma_seq = torch.stack(v_soma_seq)
+        if self.store_v_dend_pre_spike:
+            self.v_dend_pre_spike = torch.stack(v_dend_pre_spike)
         if self.store_v_soma_pre_spike:
             self.v_soma_pre_spike = torch.stack(v_soma_pre_spike)
         return y
@@ -270,7 +301,8 @@ class VForwardDendNeuron(BaseDendNeuron, abc.ABC):
 
     Attributes:
         dend, v_dend, soma, v_soma, soma_shape, n_soma, step_mode, 
-        store_v_dend_seq, store_v_soma_seq, store_v_soma_pre_spike: 
+        store_v_dend_seq, store_v_soma_seq, store_v_dend_pre_spike, 
+        store_v_soma_pre_spike: 
             see BaseDendNeuron.
         forward_strength: the feed forward coupling strength phi from the output
             compartments to the soma, defined for a single neuron, which can be
@@ -286,6 +318,7 @@ class VForwardDendNeuron(BaseDendNeuron, abc.ABC):
         forward_strength: Union[float, torch.Tensor] = 1.,
         forward_strength_learnable: bool = False, step_mode: str = "s", 
         store_v_dend_seq: bool = False, store_v_soma_seq: bool = False,
+        store_v_dend_pre_spike: bool = False,
         store_v_soma_pre_spike: bool = False
     ):
         """The constructor of VForwardDendNeuron.
@@ -313,13 +346,17 @@ class VForwardDendNeuron(BaseDendNeuron, abc.ABC):
             store_v_soma_seq (bool, optional): whether to store the somatic
                 potential at every time step when using multi-step mode. 
                 Defaults to False.
+            store_v_dend_pre_spike (bool): whether to store the dendritic 
+                potential before spike emission when forward() is called the 
+                last time. Defaults to False.
             store_v_soma_pre_spike (bool): whether to store the pre-spike 
                 somatic potential when calling forward() the last time. 
                 Defaults to False.
         """
         super().__init__(
             dend, soma, soma_shape, step_mode, 
-            store_v_dend_seq, store_v_soma_seq, store_v_soma_pre_spike
+            store_v_dend_seq, store_v_soma_seq, 
+            store_v_dend_pre_spike, store_v_soma_pre_spike
         )
         self._forward_strength_learnable = forward_strength_learnable
         self.forward_strength = parameter.Parameter(
@@ -335,6 +372,20 @@ class VForwardDendNeuron(BaseDendNeuron, abc.ABC):
     def forward_strength_learnable(self, v: bool):
         self._forward_strength_learnable = v
         self.forward_strength.requires_grad = v
+
+    @property
+    def store_v_dend_pre_spike(self) -> bool:
+        return self._store_v_dend_pre_spike
+
+    @store_v_dend_pre_spike.setter
+    def store_v_dend_pre_spike(self, val: bool):
+        # For VForwardDendNeuron, `v_dend_pre_spike == v_dend` is always true.
+        # Hence, use store_v_dend_seq to implement store_v_dend_pre_spike in
+        # multi-step mode. 
+        self._store_v_dend_pre_spike = val
+        self.store_v_dend_seq = val or self.store_v_dend_seq
+        if val and (not hasattr(self, "v_dend_pre_spike")):
+            self.register_memory("v_dend_pre_spike", None)
 
     @abc.abstractmethod
     def get_input2soma(
@@ -376,6 +427,8 @@ class VForwardDendNeuron(BaseDendNeuron, abc.ABC):
         # input2soma.shape = [N, *self.soma_shape]
         self.soma.step_mode = "s"
         soma_spike = self.soma(input2soma)
+        if self.store_v_dend_pre_spike:
+            self.v_dend_pre_spike = self.v_dend
         if self.store_v_soma_pre_spike:
             self.v_soma_pre_spike = self.soma.v_pre_spike
         return soma_spike
@@ -392,7 +445,8 @@ class VDiffForwardDendNeuron(VForwardDendNeuron):
 
     Attributes:
         dend, v_dend, soma, v_soma, soma_shape, n_soma, step_mode,
-        store_v_dend_seq, store_v_soma_seq, store_v_soma_pre_spike: 
+        store_v_dend_seq, store_v_soma_seq, store_v_dend_pre_spike, 
+        store_v_soma_pre_spike: 
             see BaseDendNeuron.
         forward_strength, forward_strength_learnable: see VForwardDendNeuron.
     """
@@ -403,6 +457,7 @@ class VDiffForwardDendNeuron(VForwardDendNeuron):
         forward_strength: Union[float, torch.Tensor] = 1.,
         forward_strength_learnable: bool = False, step_mode: str = "s",
         store_v_dend_seq: bool = False, store_v_soma_seq: bool = False, 
+        store_v_dend_pre_spike: bool = False,
         store_v_soma_pre_spike: bool = False
     ):
         """The constructor of VDiffForwardDendNeuron.
@@ -430,6 +485,9 @@ class VDiffForwardDendNeuron(VForwardDendNeuron):
             store_v_soma_seq (bool, optional): whether to store the somatic
                 potential at every time step when using multi-step mode. 
                 Defaults to False.
+            store_v_dend_pre_spike (bool): whether to store the dendritic 
+                potential before spike emission when forward() is called the 
+                last time. Defaults to False.
             store_v_soma_pre_spike (bool): whether to store the pre-spike 
                 somatic potential when calling forward() the last time. 
                 Defaults to False.
@@ -437,7 +495,8 @@ class VDiffForwardDendNeuron(VForwardDendNeuron):
         super().__init__(
             dend, soma, soma_shape, 
             forward_strength, forward_strength_learnable, step_mode,
-            store_v_dend_seq, store_v_soma_seq, store_v_soma_pre_spike
+            store_v_dend_seq, store_v_soma_seq, 
+            store_v_dend_pre_spike, store_v_soma_pre_spike
         )
 
     def get_input2soma(
@@ -482,6 +541,10 @@ class VDiffForwardDendNeuron(VForwardDendNeuron):
             self.v_dend_seq = self.dend.compartment.v_seq
         if self.store_v_soma_seq:
             self.v_soma_seq = torch.stack(v_soma_seq)
+        if self.store_v_dend_seq:
+            # For VForwardDendNeuron, v_dend_pre_spike == v_dend_seq in 
+            # multi-step mode
+            self.v_dend_pre_spike = self.dend.compartment.v_seq
         if self.store_v_soma_pre_spike:
             self.v_soma_pre_spike = torch.stack(v_soma_pre_spike)
 
@@ -500,7 +563,8 @@ class VActivationForwardDendNeuron(VForwardDendNeuron):
 
     Attributes:
         dend, v_dend, soma, v_soma, soma_shape, n_soma, step_mode,
-        store_v_dend_seq, store_v_soma_seq, store_v_soma_pre_spike: 
+        store_v_dend_seq, store_v_soma_seq, store_v_dend_pre_spike, 
+        store_v_soma_pre_spike: 
             see BaseDendNeuron.
         f_da: the dendritic activation function applied on all the output 
             dendritic compartmental voltages.
@@ -513,6 +577,7 @@ class VActivationForwardDendNeuron(VForwardDendNeuron):
         forward_strength: Union[float, torch.Tensor] = 1.,
         forward_strength_learnable: bool = False, step_mode: str = "s",
         store_v_dend_seq: bool = False, store_v_soma_seq: bool = False,
+        store_v_dend_pre_spike: bool = False,
         store_v_soma_pre_spike: bool = False
     ):
         """The constructor of VActivationForwardDendNeuron.
@@ -542,6 +607,9 @@ class VActivationForwardDendNeuron(VForwardDendNeuron):
             store_v_soma_seq (bool, optional): whether to store the somatic
                 potential at every time step when using multi-step mode. 
                 Defaults to False.
+            store_v_dend_pre_spike (bool): whether to store the dendritic 
+                potential before spike emission when forward() is called the 
+                last time. Defaults to False.
             store_v_soma_pre_spike (bool): whether to store the pre-spike 
                 somatic potential when calling forward() the last time. 
                 Defaults to False.
@@ -549,7 +617,8 @@ class VActivationForwardDendNeuron(VForwardDendNeuron):
         super().__init__(
             dend, soma, soma_shape, 
             forward_strength, forward_strength_learnable, step_mode,
-            store_v_dend_seq, store_v_soma_seq, store_v_soma_pre_spike
+            store_v_dend_seq, store_v_soma_seq, 
+            store_v_dend_pre_spike, store_v_soma_pre_spike
         )
         self.f_da = f_da
 
@@ -563,7 +632,6 @@ class VActivationForwardDendNeuron(VForwardDendNeuron):
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         """This implementation is equivalent but more efficient than default.
         """
-        T= x_seq.shape[0]
         x_seq = self.reshape_input(x_seq, "m") # shape=[T, N, n_soma, n_input]
         self.dend.step_mode = "m"
         v_dend_output_seq = self.dend(x_seq)
@@ -579,6 +647,10 @@ class VActivationForwardDendNeuron(VForwardDendNeuron):
             self.v_dend_seq = self.dend.compartment.v_seq
         if self.store_v_soma_seq:
             self.v_soma_seq = self.soma.v_seq
+        if self.store_v_dend_pre_spike:
+            # For VForwardDendNeuron, v_dend_pre_spike == v_dend_seq in 
+            # multi-step mode
+            self.v_dend_pre_spike = self.dend.compartment.v_seq
         if self.store_v_soma_pre_spike:
             self.v_soma_pre_spike = self.soma.v_pre_spike
         return soma_spike_seq
@@ -594,7 +666,8 @@ class VForwardSBackwardDendNeuron(BaseDendNeuron, abc.ABC):
 
     Attributes:
         dend, v_dend, soma, v_soma, soma_shape, n_soma, step_mode,
-        store_v_dend_seq, store_v_soma_seq, store_v_soma_pre_spike: 
+        store_v_dend_seq, store_v_soma_seq, store_v_dend_pre_spike, 
+        store_v_soma_pre_spike: 
             see BaseDendNeuron.
         forward_strength: the feed forward coupling strength phi from the output
             compartments to the soma, defined for a single neuron, which can be
@@ -619,6 +692,7 @@ class VForwardSBackwardDendNeuron(BaseDendNeuron, abc.ABC):
         backward_strength_learnable: bool = False,
         step_mode: str = "s",
         store_v_dend_seq: bool = False, store_v_soma_seq: bool = False,
+        store_v_dend_pre_spike: bool = False,
         store_v_soma_pre_spike: bool = False
     ):
         """The constructor of VForwardSBackwardDendNeuron.
@@ -654,13 +728,17 @@ class VForwardSBackwardDendNeuron(BaseDendNeuron, abc.ABC):
             store_v_soma_seq (bool, optional): whether to store the somatic
                 potential at every time step when using multi-step mode. 
                 Defaults to False.
+            store_v_dend_pre_spike (bool): whether to store the dendritic 
+                potential before spike emission when forward() is called the 
+                last time. Defaults to False.
             store_v_soma_pre_spike (bool): whether to store the pre-spike 
                 somatic potential when calling forward() the last time. 
                 Defaults to False.
         """
         super().__init__(
             dend, soma, soma_shape, step_mode, 
-            store_v_dend_seq, store_v_soma_seq, store_v_soma_pre_spike
+            store_v_dend_seq, store_v_soma_seq, 
+            store_v_dend_pre_spike, store_v_soma_pre_spike
         )
         self._forward_strength_learnable = forward_strength_learnable
         self.forward_strength = parameter.Parameter(
@@ -734,6 +812,8 @@ class VForwardSBackwardDendNeuron(BaseDendNeuron, abc.ABC):
         x = self.reshape_input(x, "s") # shape=[T, N, n_soma, n_input]
         self.dend.step_mode = "s"
         v_dend_output = self.dend(x) 
+        if self.store_v_dend_pre_spike:
+            self.v_dend_pre_spike = self.v_dend
 
         # v_dend_output.shape = [N, *self.soma_shape, self.dend.wiring.n_output]
         self.v_soma_float2tensor_by_shape_ints(*v_dend_output.shape[:-1])
@@ -763,7 +843,8 @@ class VDiffForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
 
     Args:
         dend, v_dend, soma, v_soma, soma_shape, n_soma, step_mode,
-        store_v_dend_seq, store_v_soma_seq, store_v_soma_pre_spike: 
+        store_v_dend_seq, store_v_soma_seq, store_v_dend_pre_spike, 
+        store_v_soma_pre_spike: 
             see BaseDendNeuron.
         forward_strength, forward_strength_learnable, backward_strength,
             backward_strength_learnable: see VForwardSBackwardNeuron.
@@ -778,6 +859,7 @@ class VDiffForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
         backward_strength_learnable: bool = False,
         step_mode: str = "s",
         store_v_dend_seq: bool = False, store_v_soma_seq: bool = False, 
+        store_v_dend_pre_spike: bool = False,
         store_v_soma_pre_spike: bool = False
     ):
         """The constructor of VDiffForwardSBackwardDendNeuron.
@@ -813,6 +895,9 @@ class VDiffForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
             store_v_soma_seq (bool, optional): whether to store the somatic
                 potential at every time step when using multi-step mode. 
                 Defaults to False.
+            store_v_dend_pre_spike (bool): whether to store the dendritic 
+                potential before spike emission when forward() is called the 
+                last time. Defaults to False.
             store_v_soma_pre_spike (bool): whether to store the pre-spike 
                 somatic potential when calling forward() the last time. 
                 Defaults to False.
@@ -822,7 +907,7 @@ class VDiffForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
             forward_strength, forward_strength_learnable,
             backward_strength, backward_strength_learnable,
             step_mode, store_v_dend_seq, store_v_soma_seq, 
-            store_v_soma_pre_spike
+            store_v_dend_pre_spike, store_v_soma_pre_spike
         )
 
     def get_input2soma(
@@ -852,7 +937,8 @@ class VActivationForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
 
     Args:
         dend, v_dend, soma, v_soma, soma_shape, n_soma, step_mode,
-        store_v_dend_seq, store_v_soma_seq, store_v_soma_pre_spike: 
+        store_v_dend_seq, store_v_soma_seq, store_v_dend_pre_spike, 
+        store_v_soma_pre_spike: 
             see BaseDendNeuron.
         f_da: the dendritic activation function applied on all the output 
             dendritic compartmental voltages. 
@@ -869,6 +955,7 @@ class VActivationForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
         backward_strength_learnable: bool = False,
         step_mode: str = "s",
         store_v_dend_seq: bool = False, store_v_soma_seq: bool = False,
+        store_v_dend_pre_spike: bool = False,
         store_v_soma_pre_spike: bool = False
     ):
         """The constructor of VActivationForwardSBackwardDendNeuron.
@@ -906,6 +993,9 @@ class VActivationForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
             store_v_soma_seq (bool, optional): whether to store the somatic
                 potential at every time step when using multi-step mode. 
                 Defaults to False.
+            store_v_dend_pre_spike (bool): whether to store the dendritic 
+                potential before spike emission when forward() is called the 
+                last time. Defaults to False.
             store_v_soma_pre_spike (bool): whether to store the pre-spike 
                 somatic potential when calling forward() the last time. 
                 Defaults to False.
@@ -915,7 +1005,7 @@ class VActivationForwardSBackwardDendNeuron(VForwardSBackwardDendNeuron):
             forward_strength, forward_strength_learnable,
             backward_strength, backward_strength_learnable,
             step_mode, store_v_dend_seq, store_v_soma_seq, 
-            store_v_soma_pre_spike
+            store_v_dend_pre_spike, store_v_soma_pre_spike
         )
         self.f_da = f_da
 
