@@ -882,7 +882,7 @@ def dendritic_prediction_plasticity_test(
             w1 = net[1].weight
             print(f"train_acc={acc_cnt/train_sample_cnt}, shift={(w1-w0).mean()}")
             f, ax = plt.subplots()
-            im = ax.imshow(w1[0].view([28, 28]))
+            im = ax.imshow(w1[1].view([28, 28]))
             f.colorbar(im, ax=ax)
             plt.show()
         print((net[1].weight-w0)[0])

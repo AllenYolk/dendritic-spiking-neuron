@@ -10,6 +10,7 @@ from dendsn.model import synapse
 from dendsn.model import synapse_conn
 from dendsn.model import neuron
 from dendsn.model import dendrite
+from dendsn.model import soma
 
 
 def ddp_linear_single_step(
@@ -87,17 +88,16 @@ class DDPLearner(BaseLearner):
                 f"but type(dsn.dend)={type(self.dsn.dend)}."
             )
 
+        self.dsn.store_v_soma_pre_spike = True
         if step_mode == "m":
             self.dsn.store_v_dend_seq = True
-            self.dsn.store_v_soma_seq = True
         self.pre_spike_monitor = monitor.InputMonitor(syn)
         self.v_dend_monitor = monitor.AttributeMonitor(
             "v_dend_seq" if step_mode=="m" else "v_dend", 
             pre_forward=False, net=dsn
         )
         self.v_soma_monitor = monitor.AttributeMonitor(
-            "v_soma_seq" if step_mode=="m" else "v_soma", 
-            pre_forward=False, net=dsn
+            "v_soma_pre_spike", pre_forward=False, net=dsn
         )
 
         self.f_rate = f_rate
@@ -126,7 +126,7 @@ class DDPLearner(BaseLearner):
             )
 
         if isinstance(self.dsn, neuron.VDiffForwardDendNeuron):
-            if isinstance(self.dsn.soma, sj_neuron.LIFNode):
+            if isinstance(self.dsn.soma, soma.LIFSoma):
                 def f_u_pred(v_dend, dsn):
                     fs = dsn.forward_strength * torch.ones_like(v_dend)
                     vr = dsn.soma.v_reset
@@ -140,7 +140,7 @@ class DDPLearner(BaseLearner):
                 )
 
         elif isinstance(self.dsn, neuron.VActivationForwardDendNeuron):
-            if isinstance(self.dsn.soma, sj_neuron.LIFNode):
+            if isinstance(self.dsn.soma, soma.LIFSoma):
                 def f_u_pred(v_dend, dsn):
                     f_da = dsn.f_da
                     fs = dsn.forward_strength
