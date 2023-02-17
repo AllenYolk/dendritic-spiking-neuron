@@ -778,9 +778,6 @@ def stdp_test(data_dir, log_dir, epochs, T):
     )
     functional.set_step_mode(net, "m")
 
-    for k, v in net.named_parameters():
-        print(k)
-
     p = reunn.SupervisedClassificationTaskPipeline(
         backend="spikingjelly", net=net, log_dir=log_dir, T=T,
         hparam={
@@ -797,8 +794,7 @@ def stdp_test(data_dir, log_dir, epochs, T):
     print(net[2].forward_strength)
 
     functional.reset_net(net=net)
-    stdp_learners = []
-    stdp_parameters = []
+    stdp_learners = learning.LearnerList()
     for i in range(len(net)):
         if isinstance(net[i], synapse.BaseSynapse) and (i < len(net)-1):
             stdp_learners.append(learning.SemiSTDPLearner(
@@ -807,11 +803,7 @@ def stdp_test(data_dir, log_dir, epochs, T):
                 f_trace_pre=lambda t: torch.nn.functional.relu(t-0.2),
                 step_mode="m", specified_multi_imp=False
             ))
-            for k, v in stdp_learners[-1].named_parameters():
-                print(k)
-            for p in net[i].parameters():
-                stdp_parameters.append(p)
-    optimizer = optim.SGD(params=stdp_parameters, lr=1e-4)
+    optimizer = optim.SGD(params=stdp_learners.parameters(), lr=1e-4)
 
     w0 = net[1].conn.weight.clone()
     f, ax = plt.subplots()
@@ -828,16 +820,14 @@ def stdp_test(data_dir, log_dir, epochs, T):
                 pred = pred.sum(dim=0)
 
                 optimizer.zero_grad()
-                for learner in stdp_learners:
-                    learner.step()
+                stdp_learners.step()
                 optimizer.step()
 
                 acc_cnt += (pred.argmax(dim=1) == y).sum().item()
                 train_sample_cnt += y.shape[0]
 
                 functional.reset_net(net)
-                for learner in stdp_learners:
-                    learner.reset()
+                stdp_learners.reset()
 
             w1 = net[1].conn.weight
             print(f"train_acc={acc_cnt/train_sample_cnt}, shift={(w1-w0).mean()}")
@@ -898,9 +888,6 @@ def dendritic_prediction_plasticity_test(data_dir, log_dir, epochs, T):
     functional.set_step_mode(net, "m")
     sur = stochastic_firing.LogisticStochasticFiring(f_thres=0.95, beta=7.5)
 
-    for k, v in net.named_parameters():
-        print(k)
-
     p = reunn.SupervisedClassificationTaskPipeline(
         backend="spikingjelly", net=net, log_dir=log_dir, T=T,
         hparam={
@@ -911,7 +898,7 @@ def dendritic_prediction_plasticity_test(data_dir, log_dir, epochs, T):
         train_loader=train_loader, validation_loader=test_loader
     )
     p.train(
-        epochs=25, validation=True, silent=False, 
+        epochs=1, validation=True, silent=False, 
         rec_runtime_msg=False, rec_hparam_msg=False
     )
     print(net[2].forward_strength)
@@ -920,17 +907,14 @@ def dendritic_prediction_plasticity_test(data_dir, log_dir, epochs, T):
     plt.show()
 
     functional.reset_net(net=net)
-    ddp_learners = []
-    ddp_parameters = []
+    ddp_learners = learning.LearnerList()
     for i in range(len(net)):
         if isinstance(net[i], synapse.BaseSynapse) and (i < len(net)-1):
             ddp_learners.append(learning.DDPLearner(
                 syn=net[i], dsn=net[i+1], f_rate=sur.rate_function,
                 step_mode="m", specified_multi_imp=False
             ))
-            for p in net[i].parameters():
-                ddp_parameters.append(p)
-    optimizer = optim.SGD(params=ddp_parameters, lr=1e-4)
+    optimizer = optim.SGD(params=ddp_learners.parameters(), lr=1e-4)
 
     w0 = net[1].conn.weight.clone()
     f, ax = plt.subplots()
@@ -947,16 +931,14 @@ def dendritic_prediction_plasticity_test(data_dir, log_dir, epochs, T):
                 pred = pred.sum(dim=0)
 
                 optimizer.zero_grad()
-                for learner in ddp_learners:
-                    learner.step()
+                ddp_learners.step()
                 optimizer.step()
 
                 acc_cnt += (pred.argmax(dim=1) == y).sum().item()
                 train_sample_cnt += y.shape[0]
 
                 functional.reset_net(net)
-                for learner in ddp_learners:
-                    learner.reset()
+                ddp_learners.reset()
 
             w1 = net[1].conn.weight
             print(f"train_acc={acc_cnt/train_sample_cnt}, shift={(w1-w0).mean()}")
