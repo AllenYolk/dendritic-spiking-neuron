@@ -7,13 +7,13 @@ model.
 from typing import Union
 
 import torch
-import torch.nn as nn
 import torch.nn.common_types as ttypes
+from spikingjelly.activation_based import base
 
 from dendsn.model import synapse_conn, synapse_filter
 
 
-class BaseSynapse(nn.Module):
+class BaseSynapse(base.MemoryModule):
     """Base class for all synaptic models.
 
     A generic synapse model consists of a synaptic connection model and 

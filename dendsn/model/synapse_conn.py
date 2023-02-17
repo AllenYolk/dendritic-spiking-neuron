@@ -17,11 +17,12 @@ import torch.nn.parameter as P
 import torch.nn.functional as F
 import torch.nn.init as init
 import torch.nn.common_types as ttypes
+from spikingjelly.activation_based import base
 
 from dendsn import functional
 
 
-class BaseSynapseConn(nn.Module, abc.ABC):
+class BaseSynapseConn(nn.Module, base.StepModule, abc.ABC):
     """Base class for all synaptic connections.
 
     A synaptic connection module is a wrapper for weight layers in Pytorch. 
@@ -79,7 +80,6 @@ class BaseSynapseConn(nn.Module, abc.ABC):
     def single_step_forward(self, x: torch.Tensor) -> torch.Tensor:
         pass
 
-    @abc.abstractmethod
     def multi_step_forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         T = x_seq.shape[0]
         y_seq = []
