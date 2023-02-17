@@ -11,7 +11,7 @@ from torchvision import transforms
 from spikingjelly.activation_based import neuron as sj_neuron
 from spikingjelly.activation_based import functional
 from spikingjelly.activation_based import surrogate
-from spikingjelly.activation_based import layer, monitor
+from spikingjelly.activation_based import layer
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import numpy as np
@@ -729,7 +729,7 @@ def continual_learning_test(
     plt.show()
 
 
-def stdp_test(neuron_type, firing_type, data_dir, log_dir, epochs, T):
+def stdp_test(data_dir, log_dir, epochs, T):
     train_loader = data.DataLoader(
         dataset=datasets.MNIST(
             root=data_dir, download=True, train=True,
@@ -745,28 +745,75 @@ def stdp_test(neuron_type, firing_type, data_dir, log_dir, epochs, T):
         batch_size=128, shuffle=False, drop_last=False
     )
 
-    def f_w_pre_post(w):
-        return 0.75-w
-    def f_trace_pre(t):
-        return t-0.25
+    sur = surrogate.Sigmoid()
+    net = nn.Sequential(
+        layer.Flatten(),
+        synapse.LinearIdentitySynapse(784, 512, bias=True),
+        neuron.VDiffForwardDendNeuron(
+            dend=dendrite.SegregatedDend(
+                compartment=dend_compartment.PassiveDendCompartment(
+                    decay_input=False
+                ),
+                wiring=wiring.SegregatedDendWiring(n_compartment=2)
+            ),
+            soma=soma.LIFSoma(surrogate_function=sur),
+            soma_shape=[256],
+            forward_strength=[1., 1.],
+            forward_strength_learnable=True,
+            step_mode="m"
+        ),
+        synapse.LinearIdentitySynapse(256, 256, bias=True),
+        neuron.VDiffForwardDendNeuron(
+            dend=dendrite.SegregatedDend(
+                compartment=dend_compartment.PassiveDendCompartment(
+                    decay_input=False
+                ),
+                wiring=wiring.SegregatedDendWiring(n_compartment=2)
+            ),
+            soma=soma.LIFSoma(surrogate_function=sur),
+            soma_shape=[128],
+            step_mode="m"
+        ),
+        layer.Linear(128, 10),
+    )
+    functional.set_step_mode(net, "m")
 
-    net = mnist_fc_net(neuron_type, firing_type)
-    target_synapse_type = (nn.Linear, )
+    for k, v in net.named_parameters():
+        print(k)
+
+    p = reunn.SupervisedClassificationTaskPipeline(
+        backend="spikingjelly", net=net, log_dir=log_dir, T=T,
+        hparam={
+            "firing_type": "deterministic"
+        },
+        criterion=nn.CrossEntropyLoss(),
+        optimizer=optim.Adam(params=net.parameters(),lr=1e-4),
+        train_loader=train_loader, validation_loader=test_loader
+    )
+    p.train(
+        epochs=1, validation=True, silent=False, 
+        rec_runtime_msg=False, rec_hparam_msg=False
+    )
+    print(net[2].forward_strength)
+
+    functional.reset_net(net=net)
     stdp_learners = []
-    stdp_learn_params = []
+    stdp_parameters = []
     for i in range(len(net)):
-        if isinstance(net[i], target_synapse_type) and (i < len(net)-1):
+        if isinstance(net[i], synapse.BaseSynapse) and (i < len(net)-1):
             stdp_learners.append(learning.SemiSTDPLearner(
-                syn=net[i], dsn=net[i+1], tau_pre=3.,
-                f_w_pre_post=f_w_pre_post,
-                f_trace_pre=f_trace_pre,
-                step_mode="m"
+                syn=net[i], dsn=net[i+1], tau_pre=2.,
+                f_w_pre_post=lambda w: 0.5-w,
+                f_trace_pre=lambda t: torch.nn.functional.relu(t-0.2),
+                step_mode="m", specified_multi_imp=False
             ))
+            for k, v in stdp_learners[-1].named_parameters():
+                print(k)
             for p in net[i].parameters():
-                stdp_learn_params.append(p)
-    optimizer = optim.SGD(params=stdp_learn_params, lr=1e-2)
+                stdp_parameters.append(p)
+    optimizer = optim.SGD(params=stdp_parameters, lr=1e-4)
 
-    w0 = net[1].weight.clone()
+    w0 = net[1].conn.weight.clone()
     f, ax = plt.subplots()
     im = ax.imshow(w0[0].view([28, 28]).detach())
     f.colorbar(im, ax=ax)
@@ -792,18 +839,16 @@ def stdp_test(neuron_type, firing_type, data_dir, log_dir, epochs, T):
                 for learner in stdp_learners:
                     learner.reset()
 
-            w1 = net[1].weight
+            w1 = net[1].conn.weight
             print(f"train_acc={acc_cnt/train_sample_cnt}, shift={(w1-w0).mean()}")
             f, ax = plt.subplots()
-            im = ax.imshow(w1[0].view([28, 28]))
+            im = ax.imshow(w1[1].view([28, 28]))
             f.colorbar(im, ax=ax)
             plt.show()
         print((net[1].weight-w0)[0])
 
 
-def dendritic_prediction_plasticity_test(
-    neuron_type, firing_type, data_dir, log_dir, epochs, T
-):
+def dendritic_prediction_plasticity_test(data_dir, log_dir, epochs, T):
     train_loader = data.DataLoader(
         dataset=datasets.MNIST(
             root=data_dir, download=True, train=True,
@@ -818,24 +863,58 @@ def dendritic_prediction_plasticity_test(
         ),
         batch_size=128, shuffle=False, drop_last=False
     )
-    net = mnist_fc_net(neuron_type, firing_type)
+
+    sur = surrogate.Sigmoid()
+    net = nn.Sequential(
+        layer.Flatten(),
+        synapse.LinearIdentitySynapse(784, 512, bias=True),
+        neuron.VDiffForwardDendNeuron(
+            dend=dendrite.SegregatedDend(
+                compartment=dend_compartment.PassiveDendCompartment(
+                    decay_input=False
+                ),
+                wiring=wiring.SegregatedDendWiring(n_compartment=2)
+            ),
+            soma=soma.LIFSoma(surrogate_function=sur),
+            soma_shape=[256],
+            forward_strength=[1., 1.],
+            forward_strength_learnable=True,
+            step_mode="m"
+        ),
+        synapse.LinearIdentitySynapse(256, 256, bias=True),
+        neuron.VDiffForwardDendNeuron(
+            dend=dendrite.SegregatedDend(
+                compartment=dend_compartment.PassiveDendCompartment(
+                    decay_input=False
+                ),
+                wiring=wiring.SegregatedDendWiring(n_compartment=2)
+            ),
+            soma=soma.LIFSoma(surrogate_function=sur),
+            soma_shape=[128],
+            step_mode="m"
+        ),
+        layer.Linear(128, 10),
+    )
+    functional.set_step_mode(net, "m")
     sur = stochastic_firing.LogisticStochasticFiring(f_thres=0.95, beta=7.5)
 
-    if False:
-        p = reunn.SupervisedClassificationTaskPipeline(
-            backend="spikingjelly", net=net, log_dir=log_dir, T=T,
-            hparam={
-                "neuron_type": neuron_type, "firing_type": firing_type, 
-                "T": T, "epochs": epochs
-            },
-            criterion=nn.CrossEntropyLoss(),
-            optimizer=optim.Adam(params=net.parameters(),lr=1e-4),
-            train_loader=train_loader, validation_loader=test_loader
-        )
-        p.train(
-            epochs=1, validation=True, silent=False, 
-            rec_runtime_msg=False, rec_hparam_msg=False
-        )
+    for k, v in net.named_parameters():
+        print(k)
+
+    p = reunn.SupervisedClassificationTaskPipeline(
+        backend="spikingjelly", net=net, log_dir=log_dir, T=T,
+        hparam={
+            "firing_type": "deterministic"
+        },
+        criterion=nn.CrossEntropyLoss(),
+        optimizer=optim.Adam(params=net.parameters(),lr=1e-4),
+        train_loader=train_loader, validation_loader=test_loader
+    )
+    p.train(
+        epochs=25, validation=True, silent=False, 
+        rec_runtime_msg=False, rec_hparam_msg=False
+    )
+    print(net[2].forward_strength)
 
     f, ax = sur.plot_firing_rate()
     plt.show()
@@ -844,7 +923,7 @@ def dendritic_prediction_plasticity_test(
     ddp_learners = []
     ddp_parameters = []
     for i in range(len(net)):
-        if isinstance(net[i], nn.Linear) and (i < len(net)-1):
+        if isinstance(net[i], synapse.BaseSynapse) and (i < len(net)-1):
             ddp_learners.append(learning.DDPLearner(
                 syn=net[i], dsn=net[i+1], f_rate=sur.rate_function,
                 step_mode="m", specified_multi_imp=False
@@ -853,7 +932,7 @@ def dendritic_prediction_plasticity_test(
                 ddp_parameters.append(p)
     optimizer = optim.SGD(params=ddp_parameters, lr=1e-4)
 
-    w0 = net[1].weight.clone()
+    w0 = net[1].conn.weight.clone()
     f, ax = plt.subplots()
     im = ax.imshow(w0[0].view([28, 28]).detach())
     f.colorbar(im, ax=ax)
@@ -879,7 +958,7 @@ def dendritic_prediction_plasticity_test(
                 for learner in ddp_learners:
                     learner.reset()
 
-            w1 = net[1].weight
+            w1 = net[1].conn.weight
             print(f"train_acc={acc_cnt/train_sample_cnt}, shift={(w1-w0).mean()}")
             f, ax = plt.subplots()
             im = ax.imshow(w1[1].view([28, 28]))
@@ -936,12 +1015,10 @@ def main():
         )
     elif args.mode == "stdp":
         stdp_test(
-            args.neuron_type, args.firing_type,
             args.data_dir, args.log_dir, args.epochs, args.T
         )
     elif args.mode == "ddp":
         dendritic_prediction_plasticity_test(
-            args.neuron_type, args.firing_type,
             args.data_dir, args.log_dir, args.epochs, args.T
         )
     elif args.mode == "all":

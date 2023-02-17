@@ -3,7 +3,6 @@ from typing import Callable, Union, Optional
 import torch
 import torch.nn as nn
 from spikingjelly.activation_based import monitor
-from spikingjelly.activation_based import neuron as sj_neuron
 
 from dendsn.learning.base import BaseLearner
 from dendsn.model import synapse
