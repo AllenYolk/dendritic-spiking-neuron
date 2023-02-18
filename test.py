@@ -854,7 +854,7 @@ def dendritic_prediction_plasticity_test(data_dir, log_dir, epochs, T):
         batch_size=128, shuffle=False, drop_last=False
     )
 
-    sur = surrogate.Sigmoid()
+    sur = stochastic_firing.LogisticStochasticFiring(f_thres=0.95, beta=10.)
     net = nn.Sequential(
         layer.Flatten(),
         synapse.LinearIdentitySynapse(784, 512, bias=True),
@@ -881,12 +881,13 @@ def dendritic_prediction_plasticity_test(data_dir, log_dir, epochs, T):
             ),
             soma=soma.LIFSoma(surrogate_function=sur),
             soma_shape=[128],
+            forward_strength=[1., 1.],
+            forward_strength_learnable=True,
             step_mode="m"
         ),
         layer.Linear(128, 10),
     )
     functional.set_step_mode(net, "m")
-    sur = stochastic_firing.LogisticStochasticFiring(f_thres=0.95, beta=7.5)
 
     p = reunn.SupervisedClassificationTaskPipeline(
         backend="spikingjelly", net=net, log_dir=log_dir, T=T,
@@ -902,16 +903,20 @@ def dendritic_prediction_plasticity_test(data_dir, log_dir, epochs, T):
         rec_runtime_msg=False, rec_hparam_msg=False
     )
     print(net[2].forward_strength)
+    print(net[4].forward_strength)
 
     f, ax = sur.plot_firing_rate()
     plt.show()
 
     functional.reset_net(net=net)
     ddp_learners = learning.LearnerList()
+    def f_w(w):
+        w.mul_(0.95)
+        return 1
     for i in range(len(net)):
         if isinstance(net[i], synapse.BaseSynapse) and (i < len(net)-1):
             ddp_learners.append(learning.DDPLearner(
-                syn=net[i], dsn=net[i+1], f_rate=sur.rate_function,
+                syn=net[i], dsn=net[i+1], f_rate=sur.rate_function, f_w=f_w,
                 step_mode="m", specified_multi_imp=False
             ))
     optimizer = optim.SGD(params=ddp_learners.parameters(), lr=1e-4)
