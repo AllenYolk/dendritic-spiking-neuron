@@ -1,6 +1,6 @@
 from .base import BaseLearner, LearnerList
 
-from .ddp import DDPLearner
+from .dpp import DPPLearner
 
 from .semi_stdp import SemiSTDPLearner
 

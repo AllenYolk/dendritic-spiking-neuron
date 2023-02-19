@@ -12,7 +12,7 @@ from dendsn.model import dendrite
 from dendsn.model import soma
 
 
-def ddp_linear_single_step(
+def dpp_linear_single_step(
     fc: nn.Linear, dsn: neuron.BaseDendNeuron,
     pre_spike: torch.Tensor, v_dend: torch.Tensor, v_soma: torch.Tensor,
     f_rate: Callable, f_u_pred: Callable, f_w: Callable
@@ -30,7 +30,7 @@ def ddp_linear_single_step(
     return f_w(weight) * delta_w
 
 
-def ddp_linear_multi_step(
+def dpp_linear_multi_step(
     fc: nn.Linear, dsn: neuron.BaseDendNeuron,
     pre_spike: torch.Tensor, v_dend: torch.Tensor, v_soma: torch.Tensor,
     f_rate: Callable, f_u_pred: Callable, f_w: Callable
@@ -48,7 +48,7 @@ def ddp_linear_multi_step(
     return f_w(weight) * delta_w
 
 
-def ddp_multi_step(f_single: Callable) -> Callable:
+def dpp_multi_step(f_single: Callable) -> Callable:
     def f_multi(
         layer: nn.Linear, dsn: neuron.BaseDendNeuron,
         pre_spike: torch.Tensor, v_dend: torch.Tensor, v_soma: torch.Tensor,
@@ -70,7 +70,7 @@ def ddp_multi_step(f_single: Callable) -> Callable:
     return f_multi
 
 
-class DDPLearner(BaseLearner):
+class DPPLearner(BaseLearner):
 
     def __init__(
         self, syn: Union[synapse.BaseSynapse, synapse_conn.BaseSynapseConn],
@@ -83,7 +83,7 @@ class DDPLearner(BaseLearner):
         self.dsn = dsn
         if not isinstance(self.dsn.dend, dendrite.SegregatedDend):
             raise NotImplementedError(
-                f"DDPLearner only supports dsn with SegregatedDend at present, "
+                f"DPPLearner only supports dsn with SegregatedDend at present, "
                 f"but type(dsn.dend)={type(self.dsn.dend)}."
             )
 
@@ -105,20 +105,20 @@ class DDPLearner(BaseLearner):
         if isinstance(self.syn, synapse.BaseSynapse):
             conn = syn.conn
         if isinstance(conn, nn.Linear):
-            self.f_single = ddp_linear_single_step
+            self.f_single = dpp_linear_single_step
             self.f_multi = (
-                ddp_linear_multi_step if specified_multi_imp
-                else ddp_multi_step(ddp_linear_single_step)
+                dpp_linear_multi_step if specified_multi_imp
+                else dpp_multi_step(dpp_linear_single_step)
             )
         else:
             raise NotImplementedError(
-                f"DDPLearner doesn't support synapse_conn: {conn}"
+                f"DPPLearner doesn't support synapse_conn: {conn}"
             )
 
     def get_f_u_pred(self):
         if not isinstance(self.dsn.dend, dendrite.SegregatedDend):
             raise NotImplementedError(
-                f"DDPLearner only supports dsn with SegregatedDend at present, "
+                f"DPPLearner only supports dsn with SegregatedDend at present, "
                 f"but type(dsn.dend)={type(self.dsn.dend)}."
             )
 

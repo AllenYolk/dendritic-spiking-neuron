@@ -765,7 +765,8 @@ def stdp_test(data_dir, log_dir, epochs, T):
 
     sur = surrogate.Sigmoid()
     net = nn.Sequential(
-        layer.Flatten(),
+        nn.Flatten(),
+        MultiStepDataExtend(T),
         synapse.LinearIdentitySynapse(784, 512, bias=True),
         neuron.VDiffForwardDendNeuron(
             dend=dendrite.SegregatedDend(
@@ -793,6 +794,7 @@ def stdp_test(data_dir, log_dir, epochs, T):
             step_mode="m"
         ),
         layer.Linear(128, 10),
+        MultiStepPredSum(),
     )
     functional.set_step_mode(net, "m")
 
@@ -809,12 +811,12 @@ def stdp_test(data_dir, log_dir, epochs, T):
         epochs=1, validation=True, silent=False, 
         rec_runtime_msg=False, rec_hparam_msg=False
     )
-    print(net[2].forward_strength)
+    print(net[3].forward_strength)
 
     functional.reset_net(net=net)
     stdp_learners = learning.LearnerList()
     for i in range(len(net)):
-        if isinstance(net[i], synapse.BaseSynapse) and (i < len(net)-1):
+        if isinstance(net[i], synapse.BaseSynapse) and (i < len(net)-2):
             stdp_learners.append(learning.SemiSTDPLearner(
                 syn=net[i], dsn=net[i+1], tau_pre=2.,
                 f_w_pre_post=lambda w: 0.5-w,
@@ -823,7 +825,7 @@ def stdp_test(data_dir, log_dir, epochs, T):
             ))
     optimizer = optim.SGD(params=stdp_learners.parameters(), lr=1e-4)
 
-    w0 = net[1].conn.weight.clone()
+    w0 = net[2].conn.weight.clone()
     f, ax = plt.subplots()
     im = ax.imshow(w0[0].view([28, 28]).detach())
     f.colorbar(im, ax=ax)
@@ -833,9 +835,7 @@ def stdp_test(data_dir, log_dir, epochs, T):
         for epoch in range(epochs):
             train_sample_cnt, acc_cnt = 0, 0
             for x, y in tqdm(train_loader):
-                x = x.repeat(T, 1, 1, 1, 1)
                 pred = net(x)
-                pred = pred.sum(dim=0)
 
                 optimizer.zero_grad()
                 stdp_learners.step()
@@ -847,7 +847,7 @@ def stdp_test(data_dir, log_dir, epochs, T):
                 functional.reset_net(net)
                 stdp_learners.reset()
 
-            w1 = net[1].conn.weight
+            w1 = net[2].conn.weight
             print(f"train_acc={acc_cnt/train_sample_cnt}, shift={(w1-w0).mean()}")
             f, ax = plt.subplots()
             im = ax.imshow(w1[1].view([28, 28]))
@@ -874,7 +874,8 @@ def dendritic_prediction_plasticity_test(data_dir, log_dir, epochs, T):
 
     sur = stochastic_firing.LogisticStochasticFiring(f_thres=0.95, beta=10.)
     net = nn.Sequential(
-        layer.Flatten(),
+        nn.Flatten(),
+        MultiStepDataExtend(T),
         synapse.LinearIdentitySynapse(784, 512, bias=True),
         neuron.VDiffForwardDendNeuron(
             dend=dendrite.SegregatedDend(
@@ -904,6 +905,7 @@ def dendritic_prediction_plasticity_test(data_dir, log_dir, epochs, T):
             step_mode="m"
         ),
         layer.Linear(128, 10),
+        MultiStepPredSum(),
     )
     functional.set_step_mode(net, "m")
 
@@ -920,8 +922,8 @@ def dendritic_prediction_plasticity_test(data_dir, log_dir, epochs, T):
         epochs=1, validation=True, silent=False, 
         rec_runtime_msg=False, rec_hparam_msg=False
     )
-    print(net[2].forward_strength)
-    print(net[4].forward_strength)
+    print(net[3].forward_strength)
+    print(net[5].forward_strength)
 
     f, ax = sur.plot_firing_rate()
     plt.show()
@@ -932,14 +934,14 @@ def dendritic_prediction_plasticity_test(data_dir, log_dir, epochs, T):
         w.mul_(0.95)
         return 1
     for i in range(len(net)):
-        if isinstance(net[i], synapse.BaseSynapse) and (i < len(net)-1):
-            ddp_learners.append(learning.DDPLearner(
+        if isinstance(net[i], synapse.BaseSynapse) and (i < len(net)-2):
+            ddp_learners.append(learning.DPPLearner(
                 syn=net[i], dsn=net[i+1], f_rate=sur.rate_function, f_w=f_w,
                 step_mode="m", specified_multi_imp=False
             ))
     optimizer = optim.SGD(params=ddp_learners.parameters(), lr=1e-4)
 
-    w0 = net[1].conn.weight.clone()
+    w0 = net[2].conn.weight.clone()
     f, ax = plt.subplots()
     im = ax.imshow(w0[0].view([28, 28]).detach())
     f.colorbar(im, ax=ax)
@@ -949,9 +951,7 @@ def dendritic_prediction_plasticity_test(data_dir, log_dir, epochs, T):
         for epoch in range(epochs):
             train_sample_cnt, acc_cnt = 0, 0
             for x, y in tqdm(train_loader):
-                x = x.repeat(T, 1, 1, 1, 1)
                 pred = net(x)
-                pred = pred.sum(dim=0)
 
                 optimizer.zero_grad()
                 ddp_learners.step()
@@ -963,13 +963,12 @@ def dendritic_prediction_plasticity_test(data_dir, log_dir, epochs, T):
                 functional.reset_net(net)
                 ddp_learners.reset()
 
-            w1 = net[1].conn.weight
+            w1 = net[2].conn.weight
             print(f"train_acc={acc_cnt/train_sample_cnt}, shift={(w1-w0).mean()}")
             f, ax = plt.subplots()
             im = ax.imshow(w1[1].view([28, 28]))
             f.colorbar(im, ax=ax)
             plt.show()
-        print((net[1].weight-w0)[0])
 
 
 def main():
@@ -1022,7 +1021,7 @@ def main():
         stdp_test(
             args.data_dir, args.log_dir, args.epochs, args.T
         )
-    elif args.mode == "ddp":
+    elif args.mode == "dpp":
         dendritic_prediction_plasticity_test(
             args.data_dir, args.log_dir, args.epochs, args.T
         )
