@@ -511,7 +511,23 @@ def conv_test(
     plt.show()
 
 
-def mnist_fc_net(neuron_type, firing_type):
+class MultiStepDataExtend(nn.Module):
+    def __init__(self, T):
+        super().__init__()
+        self.T = T
+    def forward(self, x):
+        l = len(x.shape)
+        return x.repeat(self.T, *[1 for i in range(l)])
+
+
+class MultiStepPredSum(nn.Module):
+    def __init__(self):
+        super().__init__()
+    def forward(self, x):
+        return x.sum(dim=0)
+
+
+def mnist_fc_net(neuron_type, firing_type, T):
     def gaussian(x):
         return torch.exp(-0.5 * ((x)**2)) / (2 * torch.pi)**0.5 * 3.5
     def gaussian_dca(x):
@@ -619,20 +635,22 @@ def mnist_fc_net(neuron_type, firing_type):
 
     net = nn.Sequential(
         layer.Flatten(),
+        MultiStepDataExtend(T),
         layer.Linear(784, 512),
         n1,
         layer.Linear(512, 128),
         n2,
         layer.Linear(128, 10),
+        MultiStepPredSum(),
     )
     functional.set_step_mode(net, "m")
     return net
 
 
 def fmnist_test(neuron_type, firing_type, data_dir, log_dir, epochs, T, silent):
-    net = mnist_fc_net(neuron_type, firing_type)
+    net = mnist_fc_net(neuron_type, firing_type, T)
     s = reunn.NetStats(
-        net=net, input_shape=[T, 1, 1, 28, 28], backend="spikingjelly"
+        net=net, input_shape=[1, 1, 28, 28], backend="spikingjelly"
     )
     s.print_summary()
 
@@ -651,7 +669,7 @@ def fmnist_test(neuron_type, firing_type, data_dir, log_dir, epochs, T, silent):
         batch_size=64, shuffle=True
     )
     p = reunn.SupervisedClassificationTaskPipeline(
-        backend="spikingjelly", net=net, log_dir=log_dir, T=T,
+        backend="spikingjelly", net=net, log_dir=log_dir, step_mode="m",
         hparam={
             "neuron_type": neuron_type, "firing_type": firing_type, 
             "T": T, "epochs": epochs
@@ -673,7 +691,7 @@ def continual_learning_test(
         neuron_type, firing_type, 
         data_dir, log_dir, epochs, T, silent, n_subtask
     ):
-    net = mnist_fc_net(neuron_type, firing_type)
+    net = mnist_fc_net(neuron_type, firing_type, T)
     net = cltask.PermutationWrappedNetwork(net, apply_permutation=True)
 
     train_loader = data.DataLoader(
@@ -700,7 +718,7 @@ def continual_learning_test(
 
         # train on subtask i
         p = reunn.SupervisedClassificationTaskPipeline(
-            net=net, log_dir=log_dir, backend="spikingjelly", T=T,
+            net=net, log_dir=log_dir, backend="spikingjelly", step_mode="m",
             hparam=None,
             criterion=nn.CrossEntropyLoss(),
             optimizer=optim.Adam(net.parameters(), lr=1e-3),
@@ -779,7 +797,7 @@ def stdp_test(data_dir, log_dir, epochs, T):
     functional.set_step_mode(net, "m")
 
     p = reunn.SupervisedClassificationTaskPipeline(
-        backend="spikingjelly", net=net, log_dir=log_dir, T=T,
+        backend="spikingjelly", net=net, log_dir=log_dir, step_mode="m",
         hparam={
             "firing_type": "deterministic"
         },
@@ -890,7 +908,7 @@ def dendritic_prediction_plasticity_test(data_dir, log_dir, epochs, T):
     functional.set_step_mode(net, "m")
 
     p = reunn.SupervisedClassificationTaskPipeline(
-        backend="spikingjelly", net=net, log_dir=log_dir, T=T,
+        backend="spikingjelly", net=net, log_dir=log_dir, step_mode="m",
         hparam={
             "firing_type": "deterministic"
         },
@@ -955,7 +973,7 @@ def dendritic_prediction_plasticity_test(data_dir, log_dir, epochs, T):
 
 
 def main():
-    parser = argparse.ArgumentParser(description = "dendsj test")
+    parser = argparse.ArgumentParser(description = "dendsn test")
     parser.add_argument("--data_dir", type=str, default="../datasets/")
     parser.add_argument("--log_dir", type=str, default="../log_dir")
     parser.add_argument("-m", "--mode", type=str, default="fmnist")
