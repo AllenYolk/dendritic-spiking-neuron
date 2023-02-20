@@ -151,6 +151,8 @@ class PassiveDendCompartment(BaseDendCompartment):
         return v
 
     def single_step_forward(self, x: torch.Tensor):
+        if isinstance(self.v, float):
+            self.v = torch.full_like(x, fill_value=self.v)
         if self.decay_input:
             self.v = PassiveDendCompartment.single_step_decay_input(
                 self.v, x, self.v_rest, self.tau
