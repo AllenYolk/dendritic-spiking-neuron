@@ -100,7 +100,6 @@ def unfold_forward_fold(
     return y.view(y_shape)
 
 
-@torch.jit.script
 def gaussian(x: torch.Tensor, mean: float, var: float) -> torch.Tensor:
     x = x - mean
     return torch.exp(-0.5 * (x**2) / var) / (2*torch.pi*var) ** 0.5
