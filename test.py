@@ -647,12 +647,10 @@ def mnist_fc_net(neuron_type, firing_type, T):
     return net
 
 
-def fmnist_test(neuron_type, firing_type, data_dir, log_dir, epochs, T, silent):
+def fmnist_test(
+    neuron_type, firing_type, data_dir, log_dir, epochs, T, silent, device
+):
     net = mnist_fc_net(neuron_type, firing_type, T)
-    s = reunn.NetStats(
-        net=net, input_shape=[1, 1, 28, 28], backend="spikingjelly"
-    )
-    s.print_summary()
 
     train_loader = data.DataLoader(
         datasets.FashionMNIST(
@@ -674,6 +672,7 @@ def fmnist_test(neuron_type, firing_type, data_dir, log_dir, epochs, T, silent):
             "neuron_type": neuron_type, "firing_type": firing_type, 
             "T": T, "epochs": epochs
         },
+        device=device,
         criterion=nn.CrossEntropyLoss(),
         optimizer=optim.Adam(params=net.parameters(),lr=1e-4),
         train_loader=train_loader, validation_loader=validation_loader
@@ -985,6 +984,7 @@ def main():
     parser.add_argument(
         "-ft", "--firing_type", type=str, default="deterministic"
     )
+    parser.add_argument("-d", "--device", type=str, default="cpu")
     args = parser.parse_args()
 
     if args.mode == "dend_compartment":
@@ -1009,7 +1009,7 @@ def main():
         fmnist_test(
             args.neuron_type, args.firing_type, 
             args.data_dir, args.log_dir, 
-            args.epochs, args.T, args.silent
+            args.epochs, args.T, args.silent, args.device
         )
     elif args.mode == "continual_learning":
         continual_learning_test(
