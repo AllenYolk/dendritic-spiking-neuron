@@ -420,3 +420,158 @@ class LIFSoma(BaseSoma):
             if self.store_v_pre_spike:
                 self.v_pre_spike = v_pre_spike_seq
             return spike_seq
+
+
+class IFSoma(BaseSoma):
+
+    def __init__(
+        self, v_threshold: float = 1., v_reset: float = 0.,
+        surrogate_function: Callable = surrogate.Sigmoid(), 
+        detach_reset: bool = False, step_mode='s', backend='torch', 
+        store_v_seq: bool = False, store_v_pre_spike: bool = False
+    ):
+        super().__init__(
+            v_threshold, v_reset, surrogate_function, detach_reset, 
+            step_mode, backend, store_v_seq, store_v_pre_spike
+        )
+
+    def neuronal_charge(self, x: torch.Tensor):
+        self.v = self.v + x
+
+    @staticmethod
+    @torch.jit.script
+    def jit_single_eval_hard(
+        x: torch.Tensor, v: torch.Tensor, v_threshold: float, v_reset: float
+    ):
+        v_pre_spike = v + x
+        spike = (v_pre_spike >= v_threshold).to(x)
+        v_post_spike = v_reset * spike + v_pre_spike * (1. - spike)
+        return spike, v_pre_spike, v_post_spike
+
+    @staticmethod
+    @torch.jit.script
+    def jit_single_eval_soft(
+        x: torch.Tensor, v: torch.Tensor, v_threshold: float, v_reset: float
+    ):
+        v_pre_spike = v + x
+        spike = (v_pre_spike >= v_threshold).to(x)
+        v_post_spike = v_pre_spike - spike * v_threshold
+        return spike, v_pre_spike, v_post_spike
+
+    @staticmethod
+    @torch.jit.script
+    def jit_multi_eval_hard(
+        x_seq: torch.Tensor, v: torch.Tensor, v_threshold: float, v_reset: float
+    ):
+        spike_seq = torch.zeros_like(x_seq)
+        v_pre_spike_seq = torch.zeros_like(x_seq)
+        for t in range(x_seq.shape[0]):
+            v = v + x_seq[t]
+            v_pre_spike_seq[t] = v
+            spike = (v >= v_threshold).to(x_seq)
+            v = v_reset * spike + (1. - spike) * v
+            spike_seq[t] = spike
+        return spike_seq, v_pre_spike_seq, v
+
+    @staticmethod
+    @torch.jit.script
+    def jit_multi_eval_hard_v_seq(
+        x_seq: torch.Tensor, v: torch.Tensor, v_threshold: float, v_reset: float
+    ):
+        spike_seq = torch.zeros_like(x_seq)
+        v_pre_spike_seq = torch.zeros_like(x_seq)
+        v_seq = torch.zeros_like(x_seq)
+        for t in range(x_seq.shape[0]):
+            v = v + x_seq[t]
+            v_pre_spike_seq[t] = v
+            spike = (v >= v_threshold).to(x_seq)
+            v = v_reset * spike + (1. - spike) * v
+            spike_seq[t] = spike
+            v_seq[t] = v
+        return spike_seq, v_pre_spike_seq, v, v_seq
+
+    @staticmethod
+    @torch.jit.script
+    def jit_multi_eval_soft(
+        x_seq: torch.Tensor, v: torch.Tensor, v_threshold: float,
+    ):
+        spike_seq = torch.zeros_like(x_seq)
+        v_pre_spike_seq = torch.zeros_like(x_seq)
+        for t in range(x_seq.shape[0]):
+            v = v + x_seq[t]
+            v_pre_spike_seq[t] = v
+            spike = (v >= v_threshold).to(x_seq)
+            v = v - spike * v_threshold
+            spike_seq[t] = spike
+        return spike_seq, v_pre_spike_seq, v
+
+    @staticmethod
+    @torch.jit.script
+    def jit_multi_eval_soft_v_seq(
+        x_seq: torch.Tensor, v: torch.Tensor, v_threshold: float,
+    ):
+        spike_seq = torch.zeros_like(x_seq)
+        v_pre_spike_seq = torch.zeros_like(x_seq)
+        v_seq = torch.zeros_like(x_seq)
+        for t in range(x_seq.shape[0]):
+            v = v + x_seq[t]
+            v_pre_spike_seq[t] = v
+            spike = (v >= v_threshold).to(x_seq)
+            v = v - spike * v_threshold
+            spike_seq[t] = spike
+            v_seq[t] = v
+        return spike_seq, v_pre_spike_seq, v, v_seq
+
+    def single_step_forward(self, x: torch.Tensor):
+        if self.training:
+            return super().single_step_forward(x)
+        else:
+            self.v_float_to_tensor(x)
+            if self.v_reset is None: # soft reset
+                spike, v_pre_spike, self.v = (
+                    self.jit_single_eval_soft(x, self.v, self.v_threshold)
+                )
+            else:
+                spike, v_pre_spike, self.v = (
+                    self.jit_single_eval_hard(
+                        x, self.v, self.v_threshold, self.v_reset
+                    )
+                )
+            if self.store_v_pre_spike:
+                self.v_pre_spike = v_pre_spike
+            return spike
+
+    def multi_step_forward(self, x_seq: torch.Tensor):
+        if self.training:
+            return super().multi_step_forward(x_seq)
+        else:
+            self.v_float_to_tensor(x_seq[0])
+            if self.v_reset is None: # soft reset
+                if self.store_v_seq:
+                    spike_seq, v_pre_spike_seq, self.v, self.v_seq = (
+                        self.jit_multi_eval_soft_v_seq(
+                            x_seq, self.v, self.v_threshold
+                        )
+                    )
+                else:
+                    spike_seq, v_pre_spike_seq, self.v = (
+                        self.jit_multi_eval_soft(
+                            x_seq, self.v, self.v_threshold
+                        )
+                    )
+            else:
+                if self.store_v_seq:
+                    spike_seq, v_pre_spike_seq, self.v, self.v_seq = (
+                        self.jit_multi_eval_hard_v_seq(
+                            x_seq, self.v, self.v_threshold, self.v_reset
+                        )
+                    )
+                else:
+                    spike_seq, v_pre_spike_seq, self.v = (
+                        self.jit_multi_eval_hard(
+                            x_seq, self.v, self.v_threshold, self.v_reset
+                        )
+                    )
+            if self.store_v_pre_spike:
+                self.v_pre_spike = v_pre_spike_seq
+            return spike_seq
