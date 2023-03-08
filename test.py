@@ -973,7 +973,7 @@ def dendritic_prediction_plasticity_test(data_dir, log_dir, epochs, T):
 def main():
     parser = argparse.ArgumentParser(description = "dendsn test")
     parser.add_argument("--data_dir", type=str, default="../datasets/")
-    parser.add_argument("--log_dir", type=str, default="../log_dir")
+    parser.add_argument("--log_dir", type=str, default="../logs")
     parser.add_argument("-m", "--mode", type=str, default="fmnist")
     parser.add_argument("-s", "--silent", action="store_true")
     parser.add_argument("-e", "--epochs", type=int, default=5)
