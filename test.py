@@ -2,29 +2,23 @@
 
 import argparse
 
+import cltask
+import matplotlib.pyplot as plt
+import numpy as np
+import reunn
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils import data
-from torchvision import datasets
-from torchvision import transforms
+from spikingjelly.activation_based import functional, layer
 from spikingjelly.activation_based import neuron as sj_neuron
-from spikingjelly.activation_based import functional
 from spikingjelly.activation_based import surrogate
-from spikingjelly.activation_based import layer
-import matplotlib.pyplot as plt
+from torch.utils import data
+from torchvision import datasets, transforms
 from tqdm import tqdm
-import numpy as np
 
-from dendsn.model import dend_compartment, wiring, dendrite 
-from dendsn.model import synapse
-from dendsn.model import neuron
-from dendsn.model import soma
-from dendsn import stochastic_firing
-from dendsn import learning
-import reunn
-import reunn.implementation
-import cltask
+from dendsn import learning, stochastic_firing
+from dendsn.model import dend_compartment, dendrite, neuron, soma
+from dendsn.model import synapse, wiring
 
 
 def dend_compartment_test(T=5, N: int  = 3):
