@@ -30,14 +30,14 @@ pip install .
 Dendritic neurons are built in a bottom-up manner in this package, and each component is implemented in a separate python script:
 
 * **dendritic neuron**: `model/neuron.py`
-  * dendrite: `model/dendrite.py`
-    * dendritic compartments: `model/dend_compartment.py`
-    * wiring of the compartments: `model/wiring.py`
-  * soma: `model/soma.py`
+    * dendrite: `model/dendrite.py`
+        * dendritic compartments: `model/dend_compartment.py`
+        * wiring of the compartments: `model/wiring.py`
+    * soma: `model/soma.py`
 * **synapse**: `model/synapse.py`
-  * synaptic connection and weights: `model/synapse_conn.py`
-    * Both linear and conv layers are available!
-  * synaptic filter: `model/synapse_filter.py`
+    * synaptic connection and weights: `model/synapse_conn.py`
+        * Both linear and conv layers are available!
+    * synaptic filter: `model/synapse_filter.py`
 
 The basic assumption is: **all the dendritic neurons in the same layer share exactly the same morphology**!
 
@@ -47,9 +47,9 @@ A series of plasticity rules are available in `dendsn.learning`, whose implement
 
 * **STDP**: `learning/stdp.py`
 * **Semi-STDP**: `learning/semi_stdp.py`
-  * A simplified form of STDP: `trace_post` and `delta_w_post_pre` will be neglected.
+    * A simplified form of STDP: `trace_post` and `delta_w_post_pre` will be neglected.
 * **Dendritic Prediction Plasticity**: `learning/dpp.py`
-  * See (Urbanczik & Senn, 2014).
+    * See (Urbanczik & Senn, 2014).
 
 Now, these learning rules can only support fully connected weight layers.
 
