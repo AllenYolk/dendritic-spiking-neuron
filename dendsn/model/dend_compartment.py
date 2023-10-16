@@ -204,7 +204,6 @@ class PassiveDendCompartment(BaseDendCompartment):
         return self.v
 
     def multi_step_forward(self, x_seq: torch.Tensor):
-        print("multi_step_forward of PassiveDendCompartment")
         input_shape = x_seq.shape
         T = input_shape[0]
         self._init_tau_matrix(T, x_seq.device)
