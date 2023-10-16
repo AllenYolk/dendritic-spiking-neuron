@@ -156,7 +156,7 @@ class PassiveDendCompartment(BaseDendCompartment):
         # v = (1 - 1/tau)*v + v_rest/tau + x
         return v
 
-    def _init_tau_matrix(self, T: int):
+    def _init_tau_matrix(self, T: int, device: str):
         # v[t=0] = (1-1/tau)*v_init + x[t=0] + v_rest/tau
         # v[t=1] = (1-1/tau)*v[t=0] + x[t=1] + v_rest/tau
         #        = (1-1/tau)^2*v_init + (1-1/tau)*x[t=0] + x[t=1] + (1-1/tau)*v_rest/tau + v_rest/tau
@@ -169,9 +169,9 @@ class PassiveDendCompartment(BaseDendCompartment):
         if (self._tau_matrix is not None) and (T == self._tau_matrix.shape[0]):
             return
 
-        self._tau_matrix = torch.zeros((T, T))
-        self._tau_vector_for_v_init = torch.zeros((T))
-        self._tau_vector_for_v_rest = torch.zeros((T))
+        self._tau_matrix = torch.zeros((T, T)).to(device)
+        self._tau_vector_for_v_init = torch.zeros((T)).to(device)
+        self._tau_vector_for_v_rest = torch.zeros((T)).to(device)
 
         # self._tau_matrix[i, j]: the coefficient of x[t=i] in v[t=j]
         # lower triangle
@@ -207,7 +207,7 @@ class PassiveDendCompartment(BaseDendCompartment):
         print("multi_step_forward of PassiveDendCompartment")
         input_shape = x_seq.shape
         T = input_shape[0]
-        self._init_tau_matrix(T)
+        self._init_tau_matrix(T, x_seq.device)
 
         # x_seq
         tau_matrix = self._tau_matrix.view(
