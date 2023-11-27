@@ -134,12 +134,17 @@ class PassiveDendCompartment(BaseDendCompartment):
         self.decay_input = decay_input
         self.v_rest = v_rest
 
+        self._tau_matrix = None
+        self._tau_vector_for_v_init = None
+        self._tau_vector_for_v_rest = None
+
     @staticmethod
     @torch.jit.script
     def single_step_decay_input(
         v: torch.Tensor, x: torch.Tensor, v_rest: float, tau: float
     ):
         v = v + (x - (v - v_rest)) / tau
+        # v = (1 - 1/tau)*v + v_rest/tau + x/tau
         return v
 
     @staticmethod
@@ -148,7 +153,42 @@ class PassiveDendCompartment(BaseDendCompartment):
         v: torch.Tensor, x: torch.Tensor, v_rest: float, tau: float
     ):
         v = v - (v - v_rest) / tau + x
+        # v = (1 - 1/tau)*v + v_rest/tau + x
         return v
+
+    def _init_tau_matrix(self, T: int, device: str):
+        # v[t=0] = (1-1/tau)*v_init + x[t=0] + v_rest/tau
+        # v[t=1] = (1-1/tau)*v[t=0] + x[t=1] + v_rest/tau
+        #        = (1-1/tau)^2*v_init + (1-1/tau)*x[t=0] + x[t=1] + (1-1/tau)*v_rest/tau + v_rest/tau
+        #        = (1-1/tau)^2*v_init + (1-1/tau)*x[t=0] + x[t=1] + (1 + (1-1/tau)) * v_rest/tau
+        # v[t=2] = (1-1/tau)*v[t=1] + x[t=2] + v_rest/tau
+        #        = (1-1/tau)^3*v_init  (1-1/tau)^2*x[t=0] + (1-1/tau)*x[t=1] + x[t=2] + ((1 + (1-1/tau))(1-1/tau)+1)
+        # ......
+
+        # have initialized
+        if (self._tau_matrix is not None) and (T == self._tau_matrix.shape[0]):
+            return
+
+        self._tau_matrix = torch.zeros((T, T)).to(device)
+        self._tau_vector_for_v_init = torch.zeros((T)).to(device)
+        self._tau_vector_for_v_rest = torch.zeros((T)).to(device)
+
+        # self._tau_matrix[i, j]: the coefficient of x[t=i] in v[t=j]
+        # lower triangle
+        for i in range(T):
+            for j in range(i, T):
+                self._tau_matrix[i, j] = (1. - 1. / self.tau) ** (j - i)
+
+        # self._tau_vector_for_v_init[i]: the coefficient of v_init in v[t=i]
+        for i in range(T):
+            self._tau_vector_for_v_init[i] = (1. - 1. / self.tau) ** (i + 1.)
+
+        # self._tau_vector_for_v_rest[i]: the coefficient of v_rest in v[t=i]
+        c = 0.
+        for i in range(T):
+            self._tau_vector_for_v_rest[i] = c * (1. - 1. / self.tau) + 1.
+            c = self._tau_vector_for_v_rest[i]
+        self._tau_vector_for_v_rest = self._tau_vector_for_v_rest / self.tau
 
     def single_step_forward(self, x: torch.Tensor):
         if isinstance(self.v, float):
@@ -162,6 +202,43 @@ class PassiveDendCompartment(BaseDendCompartment):
                 self.v, x, self.v_rest, self.tau
             )
         return self.v
+
+    def multi_step_forward(self, x_seq: torch.Tensor):
+        input_shape = x_seq.shape
+        T = input_shape[0]
+        self._init_tau_matrix(T, x_seq.device)
+
+        # x_seq
+        tau_matrix = self._tau_matrix.view(
+            T, T, *[1 for _ in range(len(input_shape) - 1)]
+        )
+        if self.decay_input:
+            x_seq = x_seq / self.tau
+        y1 = torch.sum(tau_matrix * x_seq.unsqueeze(1), dim=0) # [T, ...]
+
+        # v_init
+        v_init = self.v
+        if isinstance(v_init, float):
+            v_init = torch.full_like(x_seq, fill_value=v_init)
+        tau_vector_for_v_init = self._tau_vector_for_v_init.view(
+            -1, *[1 for _ in range(len(input_shape) - 1)]
+        )
+        y2 = tau_vector_for_v_init * v_init
+
+        # v_rest
+        v_rest = self.v_rest
+        if isinstance(v_rest, float):
+            v_rest = torch.full_like(x_seq, fill_value=v_rest)
+        tau_vector_for_v_rest = self._tau_vector_for_v_rest.view(
+            -1, *[1 for _ in range(len(input_shape) - 1)]
+        )
+        y3 = tau_vector_for_v_rest * v_rest
+
+        y = y1 + y2 + y3
+        if self.store_v_seq:
+            self.v_seq = y
+        self.v = y[-1]
+        return y
 
 
 class PAComponentDendCompartment(BaseDendCompartment):
